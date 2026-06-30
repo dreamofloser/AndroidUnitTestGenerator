@@ -62,16 +62,19 @@ abstract class GenerateUnitTestsTask : DefaultTask() {
                 return@forEach
             }
 
-            val testSource = generator.generate(classModel)
+            val generatedSource = generator.generate(classModel)
             val testFile = classModel.testFileIn(testDirectory)
             testFile.parentFile.mkdirs()
-            testFile.writeText(testSource)
+            testFile.writeText(generatedSource.source)
 
             generated += GeneratedClassResult(
                 sourceClass = classModel.qualifiedName(),
                 testClass = "${classModel.qualifiedName()}Test",
                 testFile = testFile,
-                generatedMethodCount = classModel.methods.size,
+                generatedMethodCount = generatedSource.testMethodCount,
+                assertionCount = generatedSource.assertionCount,
+                fallbackMethodCount = generatedSource.fallbackMethodCount,
+                ruleMatchedMethodCount = generatedSource.ruleMatchedMethodCount,
             )
         }
 
@@ -83,7 +86,9 @@ abstract class GenerateUnitTestsTask : DefaultTask() {
         )
 
         val reportFile = reportWriter.write(summary, reportDirectory)
-        logger.lifecycle("Generated ${generated.size} test classes. Report: $reportFile")
+        logger.lifecycle(
+            "Generated ${generated.size} test classes and ${summary.generatedTestMethods} test methods. Report: $reportFile",
+        )
     }
 
     private fun ClassModel.matchesPackageRules(includes: List<String>, excludes: List<String>): Boolean {

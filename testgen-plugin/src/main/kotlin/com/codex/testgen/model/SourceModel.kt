@@ -20,6 +20,9 @@ data class MethodModel(
     val parameters: List<ParameterModel>,
     val isStatic: Boolean,
     val thrownExceptions: List<String>,
+    val returnExpressions: List<String> = emptyList(),
+    val conditionExpressions: List<String> = emptyList(),
+    val thrownStatementTypes: List<String> = emptyList(),
 )
 
 data class ParameterModel(

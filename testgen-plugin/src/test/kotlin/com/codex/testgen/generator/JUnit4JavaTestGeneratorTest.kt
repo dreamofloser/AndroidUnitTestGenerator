@@ -25,15 +25,20 @@ class JUnit4JavaTestGeneratorTest {
                     ),
                     isStatic = false,
                     thrownExceptions = emptyList(),
+                    returnExpressions = listOf("a + b"),
                 ),
             ),
         )
 
-        val source = JUnit4JavaTestGenerator().generate(model)
+        val result = JUnit4JavaTestGenerator().generate(model)
+        val source = result.source
 
         assertTrue(source.contains("package com.example;"))
         assertTrue(source.contains("public class CalculatorTest"))
         assertTrue(source.contains("Calculator target = new Calculator();"))
         assertTrue(source.contains("int result = target.add(1, 1);"))
+        assertTrue(source.contains("assertEquals(2, result);"))
+        assertTrue(result.testMethodCount == 1)
+        assertTrue(result.assertionCount == 1)
     }
 }

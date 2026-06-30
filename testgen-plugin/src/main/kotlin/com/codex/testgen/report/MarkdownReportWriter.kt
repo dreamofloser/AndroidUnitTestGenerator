@@ -23,6 +23,10 @@ class MarkdownReportWriter {
             appendLine("| Scanned Java files | ${summary.scannedFiles} |")
             appendLine("| Parsed classes | ${summary.parsedClasses} |")
             appendLine("| Generated test classes | ${summary.generatedClasses.size} |")
+            appendLine("| Generated test methods | ${summary.generatedTestMethods} |")
+            appendLine("| Generated assertions | ${summary.generatedAssertions} |")
+            appendLine("| Rule matched methods | ${summary.ruleMatchedMethods} |")
+            appendLine("| Fallback methods | ${summary.fallbackMethods} |")
             appendLine("| Skipped classes | ${summary.skippedClasses.size} |")
             appendLine()
             appendLine("## Generated Classes")
@@ -31,10 +35,12 @@ class MarkdownReportWriter {
             if (summary.generatedClasses.isEmpty()) {
                 appendLine("No test classes were generated.")
             } else {
-                appendLine("| Source class | Test class | Test methods | File |")
-                appendLine("| --- | --- | ---: | --- |")
+                appendLine("| Source class | Test class | Test methods | Assertions | Fallback methods | File |")
+                appendLine("| --- | --- | ---: | ---: | ---: | --- |")
                 summary.generatedClasses.forEach {
-                    appendLine("| ${it.sourceClass} | ${it.testClass} | ${it.generatedMethodCount} | `${it.testFile}` |")
+                    appendLine(
+                        "| ${it.sourceClass} | ${it.testClass} | ${it.generatedMethodCount} | ${it.assertionCount} | ${it.fallbackMethodCount} | `${it.testFile}` |",
+                    )
                 }
             }
 

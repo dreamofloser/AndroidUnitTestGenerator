@@ -18,4 +18,8 @@ public class UserFormatter {
 
         return prefix + ": " + name;
     }
+
+    public boolean hasName(String name) {
+        return name != null && !name.isEmpty();
+    }
 }

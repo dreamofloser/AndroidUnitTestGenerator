@@ -8,6 +8,10 @@ import com.github.javaparser.JavaParser
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration
 import com.github.javaparser.ast.body.ConstructorDeclaration
 import com.github.javaparser.ast.body.MethodDeclaration
+import com.github.javaparser.ast.expr.ObjectCreationExpr
+import com.github.javaparser.ast.stmt.IfStmt
+import com.github.javaparser.ast.stmt.ReturnStmt
+import com.github.javaparser.ast.stmt.ThrowStmt
 import java.io.File
 
 class JavaSourceParser(
@@ -67,6 +71,16 @@ class JavaSourceParser(
             },
             isStatic = isStatic,
             thrownExceptions = thrownExceptions.map { it.asString() },
+            returnExpressions = findAll(ReturnStmt::class.java)
+                .mapNotNull { returnStmt ->
+                    returnStmt.expression.orElse(null)?.toString()
+                },
+            conditionExpressions = findAll(IfStmt::class.java)
+                .map { it.condition.toString() },
+            thrownStatementTypes = findAll(ThrowStmt::class.java)
+                .mapNotNull { throwStmt ->
+                    (throwStmt.expression as? ObjectCreationExpr)?.type?.toString()
+                },
         )
     }
 }

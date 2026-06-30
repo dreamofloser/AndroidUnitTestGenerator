@@ -1,14 +1,18 @@
 # AndroidUnitTestGenerator
 
-面向 Android 应用的单元测试自动生成框架。当前项目处于第一阶段，目标是先跑通最小闭环：扫描 Java 源码，解析 public 类和方法，生成 JUnit4 测试骨架，并输出生成报告。
+面向 Android 应用的单元测试自动生成框架。当前项目已完成第一阶段基础闭环，并开始进入第二阶段规则增强：扫描 Java 源码，解析 public 类和方法，生成 JUnit4 测试代码，并根据简单规则生成断言、参数变体和异常测试。
 
 ## 当前进度
 
 - 已实现 Gradle 插件 `com.codex.android-testgen`
 - 已提供任务 `generateUnitTests`
 - 已支持 Java 源码扫描和 JavaParser 解析
-- 已支持 JUnit4 Java 测试骨架生成
-- 已支持 Markdown 生成报告
+- 已支持 JUnit4 Java 测试生成
+- 已支持简单算术返回值 `assertEquals`
+- 已支持 boolean 比较的 true/false 场景
+- 已支持 String 空串/null 参数变体
+- 已支持简单 `throw new XxxException` 异常场景
+- 已支持增强版 Markdown 生成报告
 - 已提供 `sample-target` 示例模块用于演示和验证
 
 ## 项目结构
@@ -123,6 +127,6 @@ git status --ignored -s
 git rm --cached local.properties
 ```
 
-## 第一阶段说明
+## 当前阶段说明
 
-第一阶段只生成基础测试骨架，重点是验证框架流程可行。边界值、空值、异常、分支覆盖、Mock、Android 组件模板和覆盖率报告会在后续阶段继续完善。
+第一阶段已经完成基础闭环。第二阶段正在增强规则生成能力，当前已覆盖简单算术断言、boolean 比较断言、参数变体和异常测试。复杂分支、Mock、Android 组件模板和覆盖率报告会在后续阶段继续完善。
