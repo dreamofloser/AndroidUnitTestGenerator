@@ -1,6 +1,6 @@
 # AndroidUnitTestGenerator
 
-面向 Android 应用的单元测试自动生成框架。当前项目已完成第一阶段基础闭环，并开始进入第二阶段规则增强：扫描 Java 源码，解析 public 类和方法，生成 JUnit4 测试代码，并根据简单规则生成断言、参数变体和异常测试。
+面向 Android 应用的单元测试自动生成框架。当前项目已完成基础闭环和规则增强，并开始进入第三阶段 Mock 支持：扫描 Java 源码，解析 public 类和方法，生成 JUnit4 测试代码，并根据简单规则生成断言、参数变体、异常测试和 Mockito 依赖验证。
 
 ## 当前进度
 
@@ -12,6 +12,8 @@
 - 已支持 boolean 比较的 true/false 场景
 - 已支持 String 空串/null 参数变体
 - 已支持简单 `throw new XxxException` 异常场景
+- 已支持构造函数依赖识别
+- 已支持 Mockito mock、when stub 和 verify
 - 已支持增强版 Markdown 生成报告
 - 已提供 `sample-target` 示例模块用于演示和验证
 
@@ -129,4 +131,4 @@ git rm --cached local.properties
 
 ## 当前阶段说明
 
-第一阶段已经完成基础闭环。第二阶段正在增强规则生成能力，当前已覆盖简单算术断言、boolean 比较断言、参数变体和异常测试。复杂分支、Mock、Android 组件模板和覆盖率报告会在后续阶段继续完善。
+第一阶段已经完成基础闭环。第二阶段增强了规则生成能力，覆盖简单算术断言、boolean 比较断言、参数变体和异常测试。第三阶段开始支持 Mockito，用于处理带 Repository/Service/Dao 等依赖对象的业务类。复杂 Android 组件模板和覆盖率报告会在后续阶段继续完善。

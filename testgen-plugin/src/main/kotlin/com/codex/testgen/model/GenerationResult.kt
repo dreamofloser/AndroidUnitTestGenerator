@@ -19,6 +19,15 @@ data class GenerationSummary(
 
     val ruleMatchedMethods: Int
         get() = generatedClasses.sumOf { it.ruleMatchedMethodCount }
+
+    val mockedDependencies: Int
+        get() = generatedClasses.sumOf { it.mockedDependencyCount }
+
+    val mockStubs: Int
+        get() = generatedClasses.sumOf { it.mockStubCount }
+
+    val mockVerifications: Int
+        get() = generatedClasses.sumOf { it.mockVerificationCount }
 }
 
 data class GeneratedClassResult(
@@ -29,6 +38,9 @@ data class GeneratedClassResult(
     val assertionCount: Int,
     val fallbackMethodCount: Int,
     val ruleMatchedMethodCount: Int,
+    val mockedDependencyCount: Int,
+    val mockStubCount: Int,
+    val mockVerificationCount: Int,
 )
 
 data class SkippedClassResult(

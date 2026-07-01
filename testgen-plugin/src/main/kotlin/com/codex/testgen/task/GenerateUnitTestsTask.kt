@@ -75,6 +75,9 @@ abstract class GenerateUnitTestsTask : DefaultTask() {
                 assertionCount = generatedSource.assertionCount,
                 fallbackMethodCount = generatedSource.fallbackMethodCount,
                 ruleMatchedMethodCount = generatedSource.ruleMatchedMethodCount,
+                mockedDependencyCount = generatedSource.mockedDependencyCount,
+                mockStubCount = generatedSource.mockStubCount,
+                mockVerificationCount = generatedSource.mockVerificationCount,
             )
         }
 

@@ -2,12 +2,14 @@ package com.codex.testgen.parser
 
 import com.codex.testgen.model.ClassModel
 import com.codex.testgen.model.ConstructorModel
+import com.codex.testgen.model.DependencyCallModel
 import com.codex.testgen.model.MethodModel
 import com.codex.testgen.model.ParameterModel
 import com.github.javaparser.JavaParser
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration
 import com.github.javaparser.ast.body.ConstructorDeclaration
 import com.github.javaparser.ast.body.MethodDeclaration
+import com.github.javaparser.ast.expr.MethodCallExpr
 import com.github.javaparser.ast.expr.ObjectCreationExpr
 import com.github.javaparser.ast.stmt.IfStmt
 import com.github.javaparser.ast.stmt.ReturnStmt
@@ -80,6 +82,15 @@ class JavaSourceParser(
             thrownStatementTypes = findAll(ThrowStmt::class.java)
                 .mapNotNull { throwStmt ->
                     (throwStmt.expression as? ObjectCreationExpr)?.type?.toString()
+                },
+            dependencyCalls = findAll(MethodCallExpr::class.java)
+                .mapNotNull { callExpr ->
+                    val receiverName = callExpr.scope.orElse(null)?.toString() ?: return@mapNotNull null
+                    DependencyCallModel(
+                        receiverName = receiverName,
+                        methodName = callExpr.nameAsString,
+                        arguments = callExpr.arguments.map { it.toString() },
+                    )
                 },
         )
     }

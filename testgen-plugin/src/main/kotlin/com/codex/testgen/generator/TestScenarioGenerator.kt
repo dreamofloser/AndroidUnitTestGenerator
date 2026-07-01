@@ -3,21 +3,27 @@ package com.codex.testgen.generator
 import com.codex.testgen.model.AssertionKind
 import com.codex.testgen.model.AssertionModel
 import com.codex.testgen.model.MethodModel
+import com.codex.testgen.model.MockInteractionModel
 import com.codex.testgen.model.ParameterModel
 import com.codex.testgen.model.TestScenario
 
 class TestScenarioGenerator(
     private val sampleValueProvider: SampleValueProvider = SampleValueProvider(),
 ) {
-    fun scenariosFor(method: MethodModel): List<TestScenario> {
+    fun scenariosFor(method: MethodModel, dependencyNames: Set<String> = emptySet()): List<TestScenario> {
         val scenarios = mutableListOf<TestScenario>()
 
-        exceptionScenario(method)?.let { scenarios += it }
-        comparisonScenarios(method).takeIf { it.isNotEmpty() }?.let { scenarios += it }
-        arithmeticScenarios(method).takeIf { it.isNotEmpty() }?.let { scenarios += it }
+        val mockScenarios = mockInteractionScenarios(method, dependencyNames)
+        if (mockScenarios.isNotEmpty()) {
+            scenarios += mockScenarios
+        } else {
+            exceptionScenario(method)?.let { scenarios += it }
+            comparisonScenarios(method).takeIf { it.isNotEmpty() }?.let { scenarios += it }
+            arithmeticScenarios(method).takeIf { it.isNotEmpty() }?.let { scenarios += it }
 
-        if (scenarios.isEmpty()) {
-            scenarios += parameterVariationScenarios(method)
+            if (scenarios.isEmpty()) {
+                scenarios += parameterVariationScenarios(method)
+            }
         }
 
         if (scenarios.isEmpty()) {
@@ -25,6 +31,38 @@ class TestScenarioGenerator(
         }
 
         return scenarios.distinctBy { it.nameSuffix to it.arguments }
+    }
+
+    private fun mockInteractionScenarios(method: MethodModel, dependencyNames: Set<String>): List<TestScenario> {
+        if (dependencyNames.isEmpty()) {
+            return emptyList()
+        }
+
+        val dependencyCall = method.dependencyCalls.firstOrNull { it.receiverName in dependencyNames }
+            ?: return emptyList()
+        val arguments = method.parameters.map { sampleValueProvider.valueFor(it.type) }
+        val parameterValues = method.parameters.mapIndexed { index, parameter -> parameter.name to arguments[index] }.toMap()
+        val resolvedCallArguments = dependencyCall.arguments.map { argument ->
+            parameterValues[argument] ?: argument
+        }
+        val returnValue = stubValueFor(method.returnType)
+
+        return listOf(
+            TestScenario(
+                nameSuffix = "withMocked${dependencyCall.receiverName.capitalized()}_shouldUseDependency",
+                arguments = arguments,
+                assertion = assertionForStubbedReturn(method.returnType, returnValue),
+                ruleName = "mockito",
+                mockInteractions = listOf(
+                    MockInteractionModel(
+                        receiverName = dependencyCall.receiverName,
+                        methodName = dependencyCall.methodName,
+                        arguments = resolvedCallArguments,
+                        returnValue = returnValue,
+                    ),
+                ),
+            ),
+        )
     }
 
     private fun exceptionScenario(method: MethodModel): TestScenario? {
@@ -205,6 +243,60 @@ class TestScenarioGenerator(
             AssertionModel(AssertionKind.NOT_NULL)
         } else {
             AssertionModel(AssertionKind.NONE)
+        }
+    }
+
+    private fun assertionForStubbedReturn(returnType: String, returnValue: String?): AssertionModel {
+        if (returnType == "void") {
+            return AssertionModel(AssertionKind.NONE)
+        }
+
+        if (returnValue == null) {
+            return AssertionModel(AssertionKind.NOT_NULL)
+        }
+
+        return when (returnType) {
+            "boolean", "Boolean" -> if (returnValue == "true") {
+                AssertionModel(AssertionKind.TRUE)
+            } else {
+                AssertionModel(AssertionKind.FALSE)
+            }
+            else -> {
+                if (returnValue.startsWith("mock(")) {
+                    AssertionModel(AssertionKind.NOT_NULL)
+                } else {
+                    AssertionModel(AssertionKind.EQUALS, returnValue)
+                }
+            }
+        }
+    }
+
+    private fun stubValueFor(returnType: String): String? {
+        return when (returnType.removeSuffix("?")) {
+            "void" -> null
+            "String", "java.lang.String" -> "\"sample\""
+            "boolean", "Boolean" -> "true"
+            "byte", "Byte" -> "(byte) 1"
+            "short", "Short" -> "(short) 1"
+            "int", "Integer" -> "1"
+            "long", "Long" -> "1L"
+            "float", "Float" -> "1.0f"
+            "double", "Double" -> "1.0d"
+            "char", "Character" -> "'a'"
+            else -> {
+                when {
+                    returnType.startsWith("List<") || returnType.startsWith("java.util.List<") -> {
+                        "java.util.Collections.emptyList()"
+                    }
+                    returnType.startsWith("Set<") || returnType.startsWith("java.util.Set<") -> {
+                        "java.util.Collections.emptySet()"
+                    }
+                    returnType.startsWith("Map<") || returnType.startsWith("java.util.Map<") -> {
+                        "java.util.Collections.emptyMap()"
+                    }
+                    else -> "mock(${returnType.removeSuffix("?")}.class)"
+                }
+            }
         }
     }
 

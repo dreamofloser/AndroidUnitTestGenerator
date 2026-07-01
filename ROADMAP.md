@@ -45,12 +45,19 @@
 
 目标：支持带依赖的业务层代码，例如 Service、Repository、Presenter。
 
-计划功能：
+当前已加入：
 
 - 构造函数依赖识别。
-- Java 代码生成 Mockito 测试。
+- Mockito mock 字段生成。
+- `@Before` 初始化依赖和目标对象。
+- 简单依赖调用的 `when`/`thenReturn`。
+- 简单依赖调用的 `verify`。
+- 报告中统计 Mock 依赖、stub 和 verification 数量。
+
+后续继续增强：
+
 - Kotlin 代码生成 MockK 测试。
-- 对简单依赖调用生成 `when` 和 `verify` 模板。
+- 字段注入、方法注入和更复杂依赖调用。
 
 ## 第四阶段：Android 特性版
 

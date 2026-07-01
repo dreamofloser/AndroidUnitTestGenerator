@@ -27,6 +27,9 @@ class MarkdownReportWriter {
             appendLine("| Generated assertions | ${summary.generatedAssertions} |")
             appendLine("| Rule matched methods | ${summary.ruleMatchedMethods} |")
             appendLine("| Fallback methods | ${summary.fallbackMethods} |")
+            appendLine("| Mocked dependencies | ${summary.mockedDependencies} |")
+            appendLine("| Mockito stubs | ${summary.mockStubs} |")
+            appendLine("| Mockito verifications | ${summary.mockVerifications} |")
             appendLine("| Skipped classes | ${summary.skippedClasses.size} |")
             appendLine()
             appendLine("## Generated Classes")
@@ -35,11 +38,11 @@ class MarkdownReportWriter {
             if (summary.generatedClasses.isEmpty()) {
                 appendLine("No test classes were generated.")
             } else {
-                appendLine("| Source class | Test class | Test methods | Assertions | Fallback methods | File |")
-                appendLine("| --- | --- | ---: | ---: | ---: | --- |")
+                appendLine("| Source class | Test class | Test methods | Assertions | Mocked dependencies | Mockito stubs | Mockito verifications | Fallback methods | File |")
+                appendLine("| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |")
                 summary.generatedClasses.forEach {
                     appendLine(
-                        "| ${it.sourceClass} | ${it.testClass} | ${it.generatedMethodCount} | ${it.assertionCount} | ${it.fallbackMethodCount} | `${it.testFile}` |",
+                        "| ${it.sourceClass} | ${it.testClass} | ${it.generatedMethodCount} | ${it.assertionCount} | ${it.mockedDependencyCount} | ${it.mockStubCount} | ${it.mockVerificationCount} | ${it.fallbackMethodCount} | `${it.testFile}` |",
                     )
                 }
             }

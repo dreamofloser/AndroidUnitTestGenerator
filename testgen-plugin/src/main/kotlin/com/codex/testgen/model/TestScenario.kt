@@ -7,6 +7,7 @@ data class TestScenario(
     val expectedException: String? = null,
     val ruleName: String,
     val isFallback: Boolean = false,
+    val mockInteractions: List<MockInteractionModel> = emptyList(),
 )
 
 data class AssertionModel(
@@ -21,3 +22,10 @@ enum class AssertionKind {
     FALSE,
     NOT_NULL,
 }
+
+data class MockInteractionModel(
+    val receiverName: String,
+    val methodName: String,
+    val arguments: List<String>,
+    val returnValue: String? = null,
+)
