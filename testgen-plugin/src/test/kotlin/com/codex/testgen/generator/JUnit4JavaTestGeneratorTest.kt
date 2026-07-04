@@ -5,6 +5,7 @@ import com.codex.testgen.model.ConstructorModel
 import com.codex.testgen.model.DependencyCallModel
 import com.codex.testgen.model.MethodModel
 import com.codex.testgen.model.ParameterModel
+import com.codex.testgen.model.SourceClassKind
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -90,5 +91,116 @@ class JUnit4JavaTestGeneratorTest {
         assertTrue(result.mockedDependencyCount == 1)
         assertTrue(result.mockStubCount == 1)
         assertTrue(result.mockVerificationCount == 1)
+    }
+
+    @Test
+    fun importsAndroidTypesAndAddsLiveDataRule() {
+        val model = ClassModel(
+            packageName = "com.example.androidapp",
+            className = "AndroidPresenter",
+            sourceFile = File("AndroidPresenter.java"),
+            imports = listOf(
+                "android.content.Context",
+                "androidx.lifecycle.LiveData",
+            ),
+            constructors = listOf(
+                ConstructorModel(
+                    parameters = listOf(ParameterModel("context", "Context")),
+                ),
+            ),
+            methods = listOf(
+                MethodModel(
+                    name = "getTitle",
+                    returnType = "String",
+                    parameters = emptyList(),
+                    isStatic = false,
+                    thrownExceptions = emptyList(),
+                    returnExpressions = listOf("context.getString(R.string.app_name)"),
+                    dependencyCalls = listOf(
+                        DependencyCallModel(
+                            receiverName = "context",
+                            methodName = "getString",
+                            arguments = listOf("R.string.app_name"),
+                        ),
+                    ),
+                ),
+                MethodModel(
+                    name = "state",
+                    returnType = "LiveData<String>",
+                    parameters = emptyList(),
+                    isStatic = false,
+                    thrownExceptions = emptyList(),
+                ),
+            ),
+        )
+
+        val result = JUnit4JavaTestGenerator().generate(model)
+        val source = result.source
+
+        assertTrue(source.contains("import org.junit.Rule;"))
+        assertTrue(source.contains("import org.junit.runner.RunWith;"))
+        assertTrue(source.contains("import org.robolectric.annotation.Config;"))
+        assertTrue(source.contains("import androidx.arch.core.executor.testing.InstantTaskExecutorRule;"))
+        assertTrue(source.contains("import android.content.Context;"))
+        assertTrue(source.contains("import androidx.lifecycle.LiveData;"))
+        assertTrue(source.contains("@RunWith(RobolectricTestRunner.class)"))
+        assertTrue(source.contains("@Config(sdk = 34)"))
+        assertTrue(source.contains("public InstantTaskExecutorRule instantTaskExecutorRule"))
+        assertTrue(source.contains("private Context context;"))
+        assertTrue(source.contains("context = mock(Context.class);"))
+        assertTrue(source.contains("LiveData<String> result = target.state();"))
+        assertTrue(result.liveDataRuleCount == 1)
+        assertTrue(result.robolectricTestCount == 1)
+        assertTrue(result.androidImportCount == 2)
+    }
+
+    @Test
+    fun generatesActivityLifecycleTest() {
+        val model = ClassModel(
+            packageName = "com.example.androidapp",
+            className = "LifecycleDemoActivity",
+            sourceFile = File("LifecycleDemoActivity.java"),
+            imports = listOf("android.app.Activity"),
+            constructors = emptyList(),
+            methods = listOf(
+                MethodModel("isCreated", "boolean", emptyList(), false, emptyList()),
+                MethodModel("isStarted", "boolean", emptyList(), false, emptyList()),
+            ),
+            classKind = SourceClassKind.ACTIVITY,
+        )
+
+        val result = JUnit4JavaTestGenerator().generate(model)
+        val source = result.source
+
+        assertTrue(source.contains("Robolectric.buildActivity(LifecycleDemoActivity.class)"))
+        assertTrue(source.contains("controller.create().start().resume().get()"))
+        assertTrue(source.contains("assertTrue(activity.isCreated());"))
+        assertTrue(source.contains("assertTrue(activity.isStarted());"))
+        assertTrue(result.robolectricTestCount == 1)
+    }
+
+    @Test
+    fun generatesFragmentLifecycleTest() {
+        val model = ClassModel(
+            packageName = "com.example.androidapp",
+            className = "LifecycleDemoFragment",
+            sourceFile = File("LifecycleDemoFragment.java"),
+            imports = listOf("android.app.Fragment"),
+            constructors = emptyList(),
+            methods = listOf(
+                MethodModel("isCreated", "boolean", emptyList(), false, emptyList()),
+            ),
+            classKind = SourceClassKind.FRAGMENT,
+        )
+
+        val result = JUnit4JavaTestGenerator().generate(model)
+        val source = result.source
+
+        assertTrue(source.contains("ActivityController<Activity> controller"))
+        assertTrue(source.contains("new LifecycleDemoFragment()"))
+        assertTrue(source.contains("beginTransaction().add(fragment, \"target\").commitNow()"))
+        assertTrue(source.contains("assertTrue(fragment.isAdded());"))
+        assertTrue(source.contains("assertTrue(fragment.isCreated());"))
+        assertTrue(result.robolectricTestCount == 1)
     }
 }

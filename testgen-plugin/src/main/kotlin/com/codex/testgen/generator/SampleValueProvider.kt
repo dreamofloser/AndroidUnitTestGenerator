@@ -12,6 +12,7 @@ class SampleValueProvider {
             "boolean", "Boolean" -> "true"
             "char", "Character" -> "'a'"
             "String", "java.lang.String" -> "\"sample\""
+            "Intent", "android.content.Intent" -> "new Intent()"
             else -> complexValueFor(type)
         }
     }

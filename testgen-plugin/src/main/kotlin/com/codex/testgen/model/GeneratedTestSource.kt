@@ -9,4 +9,10 @@ data class GeneratedTestSource(
     val mockedDependencyCount: Int,
     val mockStubCount: Int,
     val mockVerificationCount: Int,
+    val liveDataRuleCount: Int = 0,
+    val robolectricTestCount: Int = 0,
+    val androidImportCount: Int = 0,
+    val composeTestCount: Int = 0,
+    val roomDaoTestCount: Int = 0,
+    val retrofitApiTestCount: Int = 0,
 )

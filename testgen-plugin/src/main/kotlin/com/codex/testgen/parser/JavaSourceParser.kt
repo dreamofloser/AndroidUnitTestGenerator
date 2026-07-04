@@ -5,6 +5,7 @@ import com.codex.testgen.model.ConstructorModel
 import com.codex.testgen.model.DependencyCallModel
 import com.codex.testgen.model.MethodModel
 import com.codex.testgen.model.ParameterModel
+import com.codex.testgen.model.SourceClassKind
 import com.github.javaparser.JavaParser
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration
 import com.github.javaparser.ast.body.ConstructorDeclaration
@@ -29,6 +30,13 @@ class JavaSourceParser(
         val packageName = compilationUnit.packageDeclaration
             .map { it.nameAsString }
             .orElse("")
+        val imports = compilationUnit.imports.map { importDeclaration ->
+            if (importDeclaration.isAsterisk) {
+                "${importDeclaration.nameAsString}.*"
+            } else {
+                importDeclaration.nameAsString
+            }
+        }
 
         return compilationUnit.types
             .filterIsInstance<ClassOrInterfaceDeclaration>()
@@ -38,12 +46,31 @@ class JavaSourceParser(
                     packageName = packageName,
                     className = declaration.nameAsString,
                     sourceFile = sourceFile,
+                    imports = imports,
                     constructors = declaration.constructors.map { it.toModel() },
                     methods = declaration.methods
                         .filter { it.canGenerateTest() }
                         .map { it.toModel() },
+                    classKind = declaration.classKind(imports),
                 )
             }
+    }
+
+    private fun ClassOrInterfaceDeclaration.classKind(imports: List<String>): SourceClassKind {
+        val extendedTypes = extendedTypes.map { it.nameAsString }.toSet()
+        val importedTypes = imports.map { it.substringAfterLast('.') }.toSet()
+        val hasPlatformFragmentImport = imports.any { it == "android.app.Fragment" }
+
+        return when {
+            extendedTypes.any { it in activityTypes } || importedTypes.any { it in activityTypes } && nameAsString.endsWith("Activity") -> {
+                SourceClassKind.ACTIVITY
+            }
+            (extendedTypes.any { it in fragmentTypes } && hasPlatformFragmentImport) ||
+                (importedTypes.any { it in fragmentTypes } && hasPlatformFragmentImport && nameAsString.endsWith("Fragment")) -> {
+                SourceClassKind.FRAGMENT
+            }
+            else -> SourceClassKind.REGULAR
+        }
     }
 
     private fun ConstructorDeclaration.toModel(): ConstructorModel {
@@ -93,5 +120,10 @@ class JavaSourceParser(
                     )
                 },
         )
+    }
+
+    private companion object {
+        val activityTypes = setOf("Activity", "AppCompatActivity", "ComponentActivity")
+        val fragmentTypes = setOf("Fragment")
     }
 }

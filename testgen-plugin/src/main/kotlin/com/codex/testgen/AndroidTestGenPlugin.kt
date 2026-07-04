@@ -15,11 +15,12 @@ class AndroidTestGenPlugin : Plugin<Project> {
 
         project.tasks.register("generateUnitTests", GenerateUnitTestsTask::class.java) { task ->
             task.group = "verification"
-            task.description = "Generates local unit test skeletons from Android Java source code."
+            task.description = "Generates local unit test skeletons from Android Java and Kotlin source code."
 
             task.sourceDir.set(extension.sourceDir)
             task.testOutputDir.set(extension.testOutputDir)
             task.reportOutputDir.set(extension.reportOutputDir)
+            task.coverageReportFile.set(extension.coverageReportFile)
             task.packageIncludes.set(extension.packageIncludes)
             task.packageExcludes.set(extension.packageExcludes)
         }

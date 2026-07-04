@@ -2,6 +2,7 @@ package com.codex.testgen
 
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.ProjectLayout
+import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.ListProperty
 import javax.inject.Inject
@@ -18,6 +19,9 @@ abstract class TestGenExtension @Inject constructor(
 
     val reportOutputDir: DirectoryProperty = objects.directoryProperty()
         .convention(layout.buildDirectory.dir("reports/testgen"))
+
+    val coverageReportFile: RegularFileProperty = objects.fileProperty()
+        .convention(layout.buildDirectory.file("reports/jacoco/test/jacocoTestReport.xml"))
 
     val packageIncludes: ListProperty<String> = objects.listProperty(String::class.java)
         .convention(emptyList())

@@ -19,3 +19,4 @@ dependencyResolutionManagement {
 rootProject.name = "AndroidUnitTestGenerator"
 
 include(":sample-target")
+include(":sample-android-app")

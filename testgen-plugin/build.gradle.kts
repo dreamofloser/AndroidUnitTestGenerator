@@ -6,6 +6,7 @@ plugins {
 
 dependencies {
     implementation("com.github.javaparser:javaparser-core:3.26.2")
+    implementation(kotlin("compiler-embeddable"))
 
     testImplementation(gradleTestKit())
     testImplementation("junit:junit:4.13.2")
@@ -17,7 +18,7 @@ gradlePlugin {
             id = "com.codex.android-testgen"
             implementationClass = "com.codex.testgen.AndroidTestGenPlugin"
             displayName = "Android Unit Test Generator"
-            description = "Generates Android local unit test skeletons from Java source code."
+            description = "Generates Android local unit test skeletons from Java and Kotlin source code."
         }
     }
 }

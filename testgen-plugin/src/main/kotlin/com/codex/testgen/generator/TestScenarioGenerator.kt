@@ -294,7 +294,7 @@ class TestScenarioGenerator(
                     returnType.startsWith("Map<") || returnType.startsWith("java.util.Map<") -> {
                         "java.util.Collections.emptyMap()"
                     }
-                    else -> "mock(${returnType.removeSuffix("?")}.class)"
+                    else -> "mock(${returnType.classLiteralType()}.class)"
                 }
             }
         }
@@ -333,6 +333,12 @@ class TestScenarioGenerator(
     }
 
     private fun String.simpleName(): String = substringAfterLast('.')
+
+    private fun String.classLiteralType(): String {
+        return removeSuffix("?")
+            .substringBefore('<')
+            .removeSuffix("[]")
+    }
 
     private fun evaluateInt(left: Int, operator: String, right: Int): Int? {
         return when (operator) {
