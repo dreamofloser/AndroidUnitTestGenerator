@@ -1,6 +1,6 @@
-﻿plugins {
+plugins {
     id("com.android.library") version "9.2.1"
-    id("com.codex.android-testgen")
+    id("io.github.dreamofloser.android-testgen")
 }
 
 android {
@@ -38,6 +38,7 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.0")
     testImplementation("androidx.arch.core:core-testing:2.2.0")
     testImplementation("org.robolectric:robolectric:4.12.1")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 }
 
 testGen {
@@ -45,6 +46,8 @@ testGen {
     testOutputDir.set(layout.projectDirectory.dir("src/test/java"))
     reportOutputDir.set(layout.buildDirectory.dir("reports/testgen"))
     packageIncludes.set(listOf("com.example.androidapp"))
+    minimumQualityScore.set(80)
+    expectedTestTaskName.set(":sample-android-app:testDebugUnitTest")
 }
 
 

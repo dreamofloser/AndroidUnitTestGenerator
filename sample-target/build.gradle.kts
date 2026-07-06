@@ -1,7 +1,7 @@
 plugins {
     java
     jacoco
-    id("com.codex.android-testgen")
+    id("io.github.dreamofloser.android-testgen")
 }
 
 dependencies {

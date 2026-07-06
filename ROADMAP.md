@@ -16,7 +16,7 @@
 
 验收标准：
 
-- 目标模块可以应用 `com.codex.android-testgen` 插件。
+- 目标模块可以应用 `io.github.dreamofloser.android-testgen` 插件。
 - 运行 `generateUnitTests` 后，会在 `src/test/java` 生成测试文件。
 - 报告能列出扫描文件数、解析类数、生成类数和跳过原因。
 

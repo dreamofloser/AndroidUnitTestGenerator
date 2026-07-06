@@ -1,32 +1,26 @@
-# 第一阶段设计说明
+# 第一阶段：最小可用生成闭环
 
 ## 阶段目标
 
-第一阶段要完成一个最小可用闭环：
+第一阶段建立测试生成框架的最小可用闭环，验证整体架构可行。
 
 ```text
-源码文件 -> 源码解析 -> 类模型 -> 测试生成 -> 测试文件 -> 生成报告
+源码文件 -> 源码扫描 -> 源码解析 -> 类模型 -> 测试生成 -> 测试文件 -> 生成报告
 ```
 
-这个阶段不追求生成非常聪明的测试，而是先证明框架架构可行、插件任务可运行、生成结果可落地。
+## 已完成内容
 
-## 支持输入
-
-- 默认扫描 `src/main/java` 下的 Java 文件。
-- 支持 public 顶层类。
-- 支持 public、非 abstract、非 native 方法。
-
-## 生成输出
-
+- 创建 Gradle 插件工程 `testgen-plugin`。
+- 注册 `generateUnitTests` 任务。
+- 实现 Java 源码扫描。
+- 实现基础 Java 类解析。
+- 建立统一源码模型 `ClassModel`、`MethodModel`、`ParameterModel`。
 - 生成 JUnit4 Java 测试类。
-- 测试类与源类保持相同 package。
-- static 方法直接通过类名调用。
-- 实例方法会先创建目标类对象，再调用方法。
-- 构造函数参数和方法参数先使用保守的示例值。
+- 输出 Markdown 生成报告。
 
-## 第一阶段生成策略
+## 生成策略
 
-参数示例值规则：
+第一阶段采用保守参数样例值，目标是保证生成代码可读、可落地。
 
 | 类型 | 示例值 |
 | --- | --- |
@@ -35,23 +29,34 @@
 | `double` / `Double` | `1.0d` |
 | `boolean` / `Boolean` | `true` |
 | `String` | `"sample"` |
-| `List` | `java.util.Collections.emptyList()` |
-| `Set` | `java.util.Collections.emptySet()` |
-| `Map` | `java.util.Collections.emptyMap()` |
+| `List` | `Collections.emptyList()` |
+| `Set` | `Collections.emptySet()` |
+| `Map` | `Collections.emptyMap()` |
 | 其他对象 | `null` |
 
-生成测试方法命名规则：
+生成测试方法命名形式：
 
 ```text
-方法名_shouldRunWithoutException
+methodName_shouldRunWithoutException
 ```
 
-## 当前限制
+## 主要代码位置
 
-- 暂不支持 Kotlin 解析。
-- 暂不生成 Android 组件专用测试模板。
-- 暂不对基本类型返回值生成准确断言。
-- 暂不支持 Mock。
-- 复杂对象参数暂时传入 `null`。
+| 功能 | 位置 |
+| --- | --- |
+| 插件入口 | `testgen-plugin/src/main/kotlin/io/github/dreamofloser/testgen/AndroidTestGenPlugin.kt` |
+| 生成任务 | `testgen-plugin/src/main/kotlin/io/github/dreamofloser/testgen/task/GenerateUnitTestsTask.kt` |
+| 源码扫描 | `testgen-plugin/src/main/kotlin/io/github/dreamofloser/testgen/scanner/SourceScanner.kt` |
+| Java 解析 | `testgen-plugin/src/main/kotlin/io/github/dreamofloser/testgen/parser/JavaSourceParser.kt` |
+| Java 测试生成 | `testgen-plugin/src/main/kotlin/io/github/dreamofloser/testgen/generator/JUnit4JavaTestGenerator.kt` |
+| 生成报告 | `testgen-plugin/src/main/kotlin/io/github/dreamofloser/testgen/report/MarkdownReportWriter.kt` |
 
-这些限制是刻意保留的，目的是让第一阶段稳定跑通，并给第二、三、四阶段留下清晰扩展点。
+## 阶段限制
+
+- 仅支持基础 Java 源码解析。
+- 不生成复杂业务断言。
+- 不支持 Mock。
+- 不支持 Android 组件模板。
+- 复杂对象参数采用保守处理。
+
+该阶段的作用是验证框架主链路，不追求测试语义完整性。

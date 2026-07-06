@@ -3,6 +3,6 @@ plugins {
 }
 
 allprojects {
-    group = "com.codex.testgen"
+    group = "io.github.dreamofloser.testgen"
     version = "0.1.0-SNAPSHOT"
 }

@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
+import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Query
 

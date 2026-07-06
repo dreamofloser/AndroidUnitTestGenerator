@@ -1,5 +1,6 @@
-﻿package com.example.androidapp
+package com.example.androidapp
 
+import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Query
 
@@ -14,6 +15,11 @@ interface KotlinWeatherApi {
         @Query("city") city: String = "sample",
         @Query("units") units: String = "metric",
     ): KotlinForecastResponse
+
+    @GET("forecast/raw")
+    suspend fun fetchRawForecast(
+        @Query("city") city: String = "sample",
+    ): Response<KotlinForecastResponse>
 }
 
 class KotlinWeatherRepository(

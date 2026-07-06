@@ -1,11 +1,14 @@
 package com.example.androidapp
 
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Query
 
@@ -21,6 +24,8 @@ class KotlinWeatherRepositoryGeneratedTest {
         val result = target.loadForecast("sample")
 
         assertTrue(result.isSuccess)
+        assertNotNull(result.getOrNull())
+        coVerify { api.fetchForecast(any()) }
     }
 
     @Test
@@ -30,6 +35,8 @@ class KotlinWeatherRepositoryGeneratedTest {
         val result = target.loadForecast("sample")
 
         assertTrue(result.isFailure)
+        assertEquals("sample failure", result.exceptionOrNull()?.message)
+        coVerify { api.fetchForecast(any()) }
     }
 
 }

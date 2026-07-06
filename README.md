@@ -1,10 +1,10 @@
-﻿# AndroidUnitTestGenerator
+# AndroidUnitTestGenerator
 
 面向 Android 应用的单元测试自动生成框架。当前项目已完成普通 Java 模块的规则化生成、Mockito 依赖验证，并开始接入真实 Android 模块：扫描源码，解析 public 类和方法，生成 JUnit4/Mockito 测试代码，并输出 Markdown 生成报告。
 
 ## 当前进度
 
-- 已实现 Gradle 插件 `com.codex.android-testgen`
+- 已实现 Gradle 插件 `io.github.dreamofloser.android-testgen`
 - 已提供任务 `generateUnitTests`
 - 已支持 Java 源码扫描和 JavaParser 解析
 - 已支持 JUnit4 Java 测试生成
@@ -20,13 +20,14 @@
 - 已提供 Context、Resources、SharedPreferences、Intent 示例场景
 - 已开始支持 Kotlin 源码扫描和 Kotlin/JUnit4 测试生成
 - 已接入 Kotlin Compiler PSI，用 AST 解析 Kotlin 顶层类、接口、函数、属性、注解和 import
-- 已支持 Kotlin data class 构造断言测试、suspend Repository + MockK 测试
+- 已支持 Kotlin data class 构造断言测试、suspend Repository + MockK 成功/失败路径测试
 - 已支持 Kotlin ViewModel + StateFlow + coroutine dispatcher 测试模板
 - 已支持基础 Compose UI 测试模板，能生成 `createComposeRule` + `onNodeWithTag` 测试
 - 已支持基础 Activity/Fragment 生命周期测试模板，能生成 Robolectric 生命周期测试
-- 已支持基础 Room DAO / Retrofit API mock 契约测试模板
+- 已支持基础 Room DAO / Retrofit API mock 契约测试模板，并开始支持 Retrofit MockWebServer 本地请求测试和 `Response<T>` 错误响应测试
 - 已支持读取 JaCoCo XML，并把覆盖率汇总写入 Markdown 生成报告
-- 已支持增强版 Markdown 生成报告
+- 已支持增强版 Markdown 生成报告，包含质量分、质量门、风险提示、语言/类型分布和验证命令
+- 已支持 `verifyGeneratedUnitTests` 验证任务，可检查生成报告、质量分、生成数量和可选风险门禁
 - 已提供 `sample-target` 示例模块用于演示和验证
 - 已提供 `sample-android-app` Android 示例模块用于第四阶段验证
 - 已在 `sample-android-app` 中加入 Kotlin 数据层 fixture，用于验证 PSI、Retrofit、suspend Repository
@@ -89,6 +90,7 @@ sample-target/build/reports/testgen/report.md
 
 ```powershell
 .\gradlew.bat :sample-android-app:generateUnitTests
+.\gradlew.bat :sample-android-app:verifyGeneratedUnitTests
 .\gradlew.bat :sample-android-app:testDebugUnitTest
 ```
 
@@ -103,6 +105,8 @@ testGen {
     testOutputDir.set(layout.projectDirectory.dir("src/test/java/generated"))
     reportOutputDir.set(layout.buildDirectory.dir("reports/testgen"))
     packageIncludes.set(listOf("你的包名"))
+    minimumQualityScore.set(50)
+    expectedTestTaskName.set(":app:testDebugUnitTest")
 }
 ```
 
@@ -138,10 +142,10 @@ cd AndroidUnitTestGenerator
 6. 开发插件功能时，主要修改：
 
 ```text
-testgen-plugin/src/main/kotlin/com/codex/testgen/
+testgen-plugin/src/main/kotlin/io/github/dreamofloser/testgen/
 ```
 
-7. 修改后优先用 `testgen-plugin` 的单元测试验证生成器逻辑，再用 `sample-target` 验证普通 Java 生成效果，用 `sample-android-app` 验证 Android 生成效果，最后再选择真实项目做烟雾测试。
+7. 修改后优先用 `testgen-plugin` 的单元测试验证生成器逻辑，再用 `sample-target` 验证普通 Java 生成效果，用 `sample-android-app` 验证 Android 生成效果，最后再选择真实项目做烟雾测试。第五阶段后，可以先运行 `verifyGeneratedUnitTests` 检查生成报告质量，再运行实际测试任务。
 
 ## .gitignore 检查
 
@@ -184,5 +188,6 @@ git rm --cached local.properties
 
 ## 当前阶段说明
 
-第一阶段完成基础闭环。第二阶段增强规则生成能力，覆盖简单算术断言、boolean 比较断言、参数变体和异常测试。第三阶段支持 Mockito，用于处理带 Repository/Service/Dao 等依赖对象的业务类。第四阶段已经接入 Android 示例模块，并开始支持真实 Kotlin Android 项目，覆盖 Android 类型 import、Kotlin Compiler PSI 解析、ViewModel/LiveData 本地单元测试、Robolectric、Context/Resources/SharedPreferences 依赖 Mock、Intent 场景、Kotlin data class、suspend Repository + MockK、Kotlin ViewModel + StateFlow、基础 Compose UI 测试、Activity/Fragment 生命周期测试、Room DAO / Retrofit API mock 契约测试、JaCoCo 覆盖率汇总。更复杂的 Android 组件模板、LLM 辅助生成和覆盖率报告会继续完善。
+第一阶段完成基础闭环。第二阶段增强规则生成能力，覆盖简单算术断言、boolean 比较断言、参数变体和异常测试。第三阶段支持 Mockito，用于处理带 Repository/Service/Dao 等依赖对象的业务类。第四阶段已经接入 Android 示例模块，并开始支持真实 Kotlin Android 项目，覆盖 Android 类型 import、Kotlin Compiler PSI 解析、ViewModel/LiveData 本地单元测试、Robolectric、Context/Resources/SharedPreferences 依赖 Mock、Intent 场景、Kotlin data class、suspend Repository + MockK、Kotlin ViewModel + StateFlow、基础 Compose UI 测试、Activity/Fragment 生命周期测试、Room DAO / Retrofit API mock 契约测试、JaCoCo 覆盖率汇总。第五阶段开始强化稳定性和报告质量，目前报告已加入质量分、质量门、风险提示、语言/类型分布、跳过原因汇总和验证命令，并新增 `verifyGeneratedUnitTests` 任务用于自动检查生成报告。第六阶段开始强化数据层模板，Repository 生成测试已加入成功 payload、失败异常信息和依赖调用验证，Retrofit API 已加入无网络 endpoint metadata 注解契约测试、第一版 MockWebServer 本地请求测试和 `Response<T>` 的 500 错误响应测试。更复杂的 Android 组件模板、LLM 辅助生成和覆盖率报告会继续完善。
+
 

@@ -15,8 +15,8 @@ dependencies {
 gradlePlugin {
     plugins {
         create("androidTestgen") {
-            id = "com.codex.android-testgen"
-            implementationClass = "com.codex.testgen.AndroidTestGenPlugin"
+            id = "io.github.dreamofloser.android-testgen"
+            implementationClass = "io.github.dreamofloser.testgen.AndroidTestGenPlugin"
             displayName = "Android Unit Test Generator"
             description = "Generates Android local unit test skeletons from Java and Kotlin source code."
         }
