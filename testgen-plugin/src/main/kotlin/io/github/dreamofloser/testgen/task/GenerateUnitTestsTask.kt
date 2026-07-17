@@ -1,7 +1,16 @@
 package io.github.dreamofloser.testgen.task
 
+import io.github.dreamofloser.testgen.analysis.TestabilityAnalyzer
 import io.github.dreamofloser.testgen.generator.JUnit4JavaTestGenerator
 import io.github.dreamofloser.testgen.generator.KotlinUnitTestGenerator
+import io.github.dreamofloser.testgen.guide.IterativeTestSuiteExpander
+import io.github.dreamofloser.testgen.guide.LlmTestCaseGuideGenerator
+import io.github.dreamofloser.testgen.llm.LlmAgentConfig
+import io.github.dreamofloser.testgen.llm.LlmAgentReport
+import io.github.dreamofloser.testgen.llm.LlmClientFactory
+import io.github.dreamofloser.testgen.llm.LlmReviewAdvisor
+import io.github.dreamofloser.testgen.llm.LlmPlanningResult
+import io.github.dreamofloser.testgen.llm.LlmGenerationGuidance
 import io.github.dreamofloser.testgen.model.ClassModel
 import io.github.dreamofloser.testgen.model.GeneratedClassResult
 import io.github.dreamofloser.testgen.model.GenerationSummary
@@ -17,6 +26,7 @@ import org.gradle.api.DefaultTask
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.Internal
@@ -45,6 +55,30 @@ abstract class GenerateUnitTestsTask : DefaultTask() {
     @get:Internal
     abstract val coverageReportFile: RegularFileProperty
 
+    @get:Input
+    abstract val enableLlm: Property<Boolean>
+
+    @get:Input
+    abstract val llmProvider: Property<String>
+
+    @get:Input
+    abstract val llmModel: Property<String>
+
+    @get:Input
+    abstract val llmAgentMode: Property<String>
+
+    @get:Input
+    abstract val llmEndpoint: Property<String>
+
+    @get:Input
+    abstract val llmApiKeyEnv: Property<String>
+
+    @get:Input
+    abstract val guideExpansionIterations: Property<Int>
+
+    @get:Input
+    abstract val maxGuidesPerClassPerIteration: Property<Int>
+
     @TaskAction
     fun generate() {
         val sourceDirectory = sourceDir.asFile.get()
@@ -58,6 +92,20 @@ abstract class GenerateUnitTestsTask : DefaultTask() {
         val kotlinGenerator = KotlinUnitTestGenerator()
         val coverageReader = CoverageReportReader()
         val reportWriter = MarkdownReportWriter()
+        val llmConfig = LlmAgentConfig(
+            enabled = enableLlm.get(),
+            provider = llmProvider.get(),
+            model = llmModel.get(),
+            agentMode = llmAgentMode.get(),
+            endpoint = llmEndpoint.get(),
+            apiKeyEnv = llmApiKeyEnv.get(),
+        )
+
+        if (llmConfig.enabled) {
+            logger.lifecycle(
+                "LLM agent configuration: provider=${llmConfig.provider}, model=${llmConfig.model}, mode=${llmConfig.agentMode}",
+            )
+        }
 
         val sourceFiles = scanner.findSourceFiles(sourceDirectory)
         val parsedClasses = sourceFiles.flatMap { sourceFile ->
@@ -68,6 +116,34 @@ abstract class GenerateUnitTestsTask : DefaultTask() {
             }
         }
             .filter { it.matchesPackageRules(packageIncludes.get(), packageExcludes.get()) }
+        val testabilityInsights = TestabilityAnalyzer().analyze(parsedClasses)
+        val highPriorityTargets = testabilityInsights.count { it.priorityScore >= 60 }
+        logger.lifecycle(
+            "Testability analysis completed for ${testabilityInsights.size} targets; " +
+                "$highPriorityTargets are high priority.",
+        )
+
+        val guideExpansion = if (llmConfig.enabled) {
+            IterativeTestSuiteExpander(
+                guideGenerator = LlmTestCaseGuideGenerator(
+                    client = LlmClientFactory.create(llmConfig),
+                    progressReporter = { message -> logger.lifecycle(message) },
+                ),
+            ).expand(
+                classes = parsedClasses,
+                maxIterations = guideExpansionIterations.get(),
+                maxGuidesPerClass = maxGuidesPerClassPerIteration.get(),
+                insights = testabilityInsights,
+            )
+        } else {
+            null
+        }
+
+        val planningResult = guideExpansion?.planningResult
+            ?: LlmPlanningResult(suggestions = emptyList(), structuredPlans = emptyList())
+        val generationGuidance = guideExpansion?.guidanceByClass
+            ?: parsedClasses.associateWith { LlmGenerationGuidance() }
+        val adoptionDecisions = guideExpansion?.adoptionDecisions.orEmpty()
 
         val generated = mutableListOf<GeneratedClassResult>()
         val skipped = mutableListOf<SkippedClassResult>()
@@ -81,9 +157,10 @@ abstract class GenerateUnitTestsTask : DefaultTask() {
                 return@forEach
             }
 
+            val guidance = generationGuidance.getValue(classModel)
             val generatedSource = when (classModel.language) {
-                SourceLanguage.JAVA -> javaGenerator.generate(classModel)
-                SourceLanguage.KOTLIN -> kotlinGenerator.generate(classModel)
+                SourceLanguage.JAVA -> javaGenerator.generate(classModel, guidance)
+                SourceLanguage.KOTLIN -> kotlinGenerator.generate(classModel, guidance)
             }
             val testFile = classModel.testFileIn(testDirectory)
             testFile.parentFile.mkdirs()
@@ -108,6 +185,7 @@ abstract class GenerateUnitTestsTask : DefaultTask() {
                 composeTestCount = generatedSource.composeTestCount,
                 roomDaoTestCount = generatedSource.roomDaoTestCount,
                 retrofitApiTestCount = generatedSource.retrofitApiTestCount,
+                llmAdoptedMethodCount = generatedSource.llmAdoptedMethodCount,
             )
         }
 
@@ -118,18 +196,39 @@ abstract class GenerateUnitTestsTask : DefaultTask() {
             ?.takeIf { it.isFile }
             ?.let { coverageReader.read(it) }
 
-        val summary = GenerationSummary(
+        val baseSummary = GenerationSummary(
             scannedFiles = sourceFiles.size,
             parsedClasses = parsedClasses.size,
             generatedClasses = generated,
             skippedClasses = skipped,
             coverage = coverage,
+            testabilityInsights = testabilityInsights,
         )
+        val llmAgentReport = if (llmConfig.enabled) {
+            LlmAgentReport(
+                config = llmConfig,
+                planningSuggestions = planningResult.suggestions,
+                structuredPlans = planningResult.structuredPlans,
+                adoptionDecisions = adoptionDecisions,
+                guideIterations = guideExpansion?.iterations.orEmpty(),
+                reviewSuggestions = LlmReviewAdvisor().review(baseSummary),
+            )
+        } else {
+            null
+        }
+        val summary = baseSummary.copy(llmAgentReport = llmAgentReport)
 
         val reportFile = reportWriter.write(summary, reportDirectory)
         logger.lifecycle(
             "Generated ${generated.size} test classes and ${summary.generatedTestMethods} test methods. Report: $reportFile",
         )
+        if (llmAgentReport != null) {
+            logger.lifecycle("LLM agent produced ${llmAgentReport.totalSuggestions} suggestions and adopted ${llmAgentReport.adoptedScenarioCount} scenarios.")
+            logger.lifecycle(
+                "Guide expansion completed ${llmAgentReport.guideIterations.size} iterations with " +
+                    "${llmAgentReport.guideIterations.sumOf { it.acceptedGuideCount }} accepted guides.",
+            )
+        }
     }
 
     private fun cleanStaleKotlinGeneratedTests(testDirectory: File, generatedFiles: Set<File>) {
@@ -185,7 +284,3 @@ abstract class GenerateUnitTestsTask : DefaultTask() {
         )
     }
 }
-
-
-
-

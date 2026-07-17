@@ -41,4 +41,28 @@ abstract class TestGenExtension @Inject constructor(
 
     val expectedTestTaskName: Property<String> = objects.property(String::class.java)
         .convention("")
+
+    val enableLlm: Property<Boolean> = objects.property(Boolean::class.java)
+        .convention(false)
+
+    val llmProvider: Property<String> = objects.property(String::class.java)
+        .convention("mock")
+
+    val llmModel: Property<String> = objects.property(String::class.java)
+        .convention("offline-demo")
+
+    val llmAgentMode: Property<String> = objects.property(String::class.java)
+        .convention("planning-and-review")
+
+    val llmEndpoint: Property<String> = objects.property(String::class.java)
+        .convention("")
+
+    val llmApiKeyEnv: Property<String> = objects.property(String::class.java)
+        .convention("LLM_API_KEY")
+
+    val guideExpansionIterations: Property<Int> = objects.property(Int::class.java)
+        .convention(2)
+
+    val maxGuidesPerClassPerIteration: Property<Int> = objects.property(Int::class.java)
+        .convention(1)
 }

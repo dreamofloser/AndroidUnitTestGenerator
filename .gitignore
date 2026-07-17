@@ -7,3 +7,11 @@ local.properties
 captures/
 .externalNativeBuild/
 .cxx/
+# Local secrets and machine-only LLM assets
+.env
+.env.*
+*.jks
+*.keystore
+models/
+ollama-models/
+*.gguf

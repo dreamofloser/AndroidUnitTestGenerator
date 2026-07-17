@@ -48,8 +48,9 @@ testGen {
     packageIncludes.set(listOf("com.example.androidapp"))
     minimumQualityScore.set(80)
     expectedTestTaskName.set(":sample-android-app:testDebugUnitTest")
+    guideExpansionIterations.set(2)
+    maxGuidesPerClassPerIteration.set(1)
 }
-
 
 
 

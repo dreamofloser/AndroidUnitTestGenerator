@@ -13,6 +13,7 @@ class AndroidTestGenPlugin : Plugin<Project> {
             project.objects,
             project.layout,
         )
+        configurePortableLlmConventions(project, extension)
 
         val generateTask = project.tasks.register("generateUnitTests", GenerateUnitTestsTask::class.java) { task ->
             task.group = "verification"
@@ -24,6 +25,14 @@ class AndroidTestGenPlugin : Plugin<Project> {
             task.coverageReportFile.set(extension.coverageReportFile)
             task.packageIncludes.set(extension.packageIncludes)
             task.packageExcludes.set(extension.packageExcludes)
+            task.enableLlm.set(extension.enableLlm)
+            task.llmProvider.set(extension.llmProvider)
+            task.llmModel.set(extension.llmModel)
+            task.llmAgentMode.set(extension.llmAgentMode)
+            task.llmEndpoint.set(extension.llmEndpoint)
+            task.llmApiKeyEnv.set(extension.llmApiKeyEnv)
+            task.guideExpansionIterations.set(extension.guideExpansionIterations)
+            task.maxGuidesPerClassPerIteration.set(extension.maxGuidesPerClassPerIteration)
         }
 
         project.tasks.register("verifyGeneratedUnitTests", VerifyGeneratedUnitTestsTask::class.java) { task ->
@@ -37,5 +46,41 @@ class AndroidTestGenPlugin : Plugin<Project> {
             task.failOnFallbackMethods.set(extension.failOnFallbackMethods)
             task.expectedTestTaskName.set(extension.expectedTestTaskName)
         }
+    }
+
+    private fun configurePortableLlmConventions(project: Project, extension: TestGenExtension) {
+        val providers = project.providers
+
+        extension.enableLlm.convention(
+            providers.gradleProperty("testgen.llm.enabled")
+                .orElse(providers.environmentVariable("TESTGEN_LLM_ENABLED"))
+                .map { it.equals("true", ignoreCase = true) || it == "1" }
+                .orElse(false),
+        )
+        extension.llmProvider.convention(
+            providers.gradleProperty("testgen.llm.provider")
+                .orElse(providers.environmentVariable("TESTGEN_LLM_PROVIDER"))
+                .orElse("mock"),
+        )
+        extension.llmModel.convention(
+            providers.gradleProperty("testgen.llm.model")
+                .orElse(providers.environmentVariable("TESTGEN_LLM_MODEL"))
+                .orElse("offline-demo"),
+        )
+        extension.llmAgentMode.convention(
+            providers.gradleProperty("testgen.llm.mode")
+                .orElse(providers.environmentVariable("TESTGEN_LLM_MODE"))
+                .orElse("planning-and-review"),
+        )
+        extension.llmEndpoint.convention(
+            providers.gradleProperty("testgen.llm.endpoint")
+                .orElse(providers.environmentVariable("TESTGEN_LLM_ENDPOINT"))
+                .orElse(""),
+        )
+        extension.llmApiKeyEnv.convention(
+            providers.gradleProperty("testgen.llm.apiKeyEnv")
+                .orElse(providers.environmentVariable("TESTGEN_LLM_API_KEY_ENV"))
+                .orElse("LLM_API_KEY"),
+        )
     }
 }

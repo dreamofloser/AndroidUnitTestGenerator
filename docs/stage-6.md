@@ -115,7 +115,59 @@ Generated assertions: 49
 Generation quality score: 82/100
 ```
 
-## 尚未完成
+## 阶段结束后的 LLM 增强
+
+第六阶段完成后，项目继续实现了结构化 LLM 测试规划和场景到测试代码的映射。2026 年 7 月 15 日使用真实 Ollama 与 `deepseek-coder:6.7b-instruct` 验证：
+
+```text
+Generated test classes: 10
+Generated test methods: 26
+Generated assertions: 46
+LLM agent suggestions: 8
+Guide expansion iterations: 2
+LLM adopted test methods: 2
+Executed tests: 26
+Failed tests: 0
+```
+
+LLM 当前从缺口分析器提供的预校验候选中选择真实方法、目标参数和输入策略，支持空字符串、仅空格字符串、null、零值、负数、false、空集合等策略。默认执行固定两轮：第 1 轮采纳后记录“源码类 + 方法 + 参数 + 输入策略”指纹，第 2 轮重新分析缺口并排除已采纳指纹。采纳器会拒绝重复或无法安全生成的场景，模型不可用时仍保留规则生成结果。
+
+用例指引迭代实现位于：
+
+```text
+testgen-plugin/src/main/kotlin/io/github/dreamofloser/testgen/guide/
+|-- TestCaseGuide.kt
+|-- TestCaseGapAnalyzer.kt
+|-- TestCaseGuideGenerator.kt
+`-- IterativeTestSuiteExpander.kt
+```
+
+报告的 `Iterative Test Suite Expansion` 表格记录每轮候选数、模型返回数、采纳数、重复数、拒绝数、剩余缺口和累计采纳数。本次真实 Ollama 验证两轮状态均为 `EXPANDED`，分别生成空字符串和仅空格字符串用例，26 个测试全部通过。
+
+## 阶段结束后的测试难度分析
+
+项目进一步加入 `TestabilityAnalyzer`，在测试生成前对方法级目标进行可解释分析：
+
+| 指标 | 含义 |
+| --- | --- |
+| Generation difficulty | 自动生成测试所需处理的结构复杂度 |
+| Test priority | 该目标的分支、外部依赖、关键操作和边界输入价值 |
+| Automation confidence | 当前规则与专项模板可靠生成测试的把握 |
+| Recommended strategy | JUnit、Mockito/MockK、Coroutine、ViewModel、Robolectric、Room 或 Retrofit |
+
+报告新增 `Testability Insights`、`Test Value Matrix`、`Method Ranking`、`Difficulty Driver Distribution` 和 `Iteration Gain Insight`。示例模块共分析 21 个目标，平均生成难度为 18.3/100，高优先级目标为 7 个；最难目标是 `KotlinWeatherRepository#loadForecast`，最高测试优先级目标是 `LoginViewModel#loadDisplayName`。两轮 LLM 相对 24 个规则基线测试分别增加 1 个方法，最终为 26 个。
+
+评分实现位于：
+
+```text
+testgen-plugin/src/main/kotlin/io/github/dreamofloser/testgen/analysis/
+|-- TestabilityInsight.kt
+`-- TestabilityAnalyzer.kt
+```
+
+评分由 AST/PSI 提取证据确定性计算，不使用 LLM 直接给出分数。LLM 读取排序后的候选指标，只负责选择下一条增量用例。
+
+## 保留的扩展方向
 
 | 方向 | 待扩展内容 |
 | --- | --- |
@@ -125,7 +177,7 @@ Generation quality score: 82/100
 | Kotlin 语义 | classpath 符号解析、typealias、导入别名、扩展函数、嵌套类 |
 | 异步数据流 | Flow、StateFlow 更多场景、Turbine、Paging |
 | 覆盖率 | Android variant JaCoCo 自动定位、多模块合并、覆盖率阈值 |
-| LLM 辅助 | 测试计划生成、断言建议、失败日志解释、覆盖率缺口分析 |
+| LLM 深化 | 复杂业务断言和覆盖率缺口分析；结构化计划、两轮用例指引和边界场景生成已经完成 |
 
 ## 后续建议
 
@@ -135,4 +187,4 @@ Generation quality score: 82/100
 2. 增加 Retrofit POST、Header、`@Path`、JSON fixture 模板。
 3. 增加 Room in-memory database fixture。
 4. 扩展 Repository Flow、PagingData、缓存策略模板。
-5. 将覆盖率缺口分析和 LLM 测试计划作为增强层接入。
+5. 在现有结构化 LLM 测试计划基础上扩展复杂断言和覆盖率缺口分析。

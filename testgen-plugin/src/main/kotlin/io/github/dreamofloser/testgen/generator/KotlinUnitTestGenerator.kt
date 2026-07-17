@@ -7,9 +7,14 @@ import io.github.dreamofloser.testgen.model.MethodModel
 import io.github.dreamofloser.testgen.model.ParameterModel
 import io.github.dreamofloser.testgen.model.PropertyModel
 import io.github.dreamofloser.testgen.model.SourceClassKind
+import io.github.dreamofloser.testgen.llm.LlmGenerationGuidance
+import io.github.dreamofloser.testgen.llm.LlmInputStrategy
+import io.github.dreamofloser.testgen.llm.LlmTestScenario
+import io.github.dreamofloser.testgen.llm.llmKotlinValue
+import io.github.dreamofloser.testgen.llm.supportedLlmInputStrategies
 
 class KotlinUnitTestGenerator {
-    fun generate(model: ClassModel): GeneratedTestSource {
+    fun generate(model: ClassModel, guidance: LlmGenerationGuidance = LlmGenerationGuidance()): GeneratedTestSource {
         return when (model.classKind) {
             SourceClassKind.DATA -> generateDataClassTest(model)
             SourceClassKind.VIEW_MODEL -> generateViewModelTest(model)
@@ -18,7 +23,7 @@ class KotlinUnitTestGenerator {
             SourceClassKind.RETROFIT_API -> generateDataSourceContractTest(model, DataSourceKind.RETROFIT_API)
             SourceClassKind.REGULAR,
             SourceClassKind.ACTIVITY,
-            SourceClassKind.FRAGMENT -> generateRegularClassTest(model)
+            SourceClassKind.FRAGMENT -> generateRegularClassTest(model, guidance)
         }
     }
 
@@ -321,11 +326,14 @@ class KotlinUnitTestGenerator {
         )
     }
 
-    private fun generateRegularClassTest(model: ClassModel): GeneratedTestSource {
+    private fun generateRegularClassTest(
+        model: ClassModel,
+        guidance: LlmGenerationGuidance,
+    ): GeneratedTestSource {
         val constructor = model.bestConstructor()
         val dependencyParameters = constructor.parameters.filter { it.isDependencyParameter() }
         val dependencyNames = dependencyParameters.map { it.name }.toSet()
-        val generatedMethods = model.methods
+        val ruleGeneratedMethods = model.methods
             .filter { method -> method.name != model.className }
             .flatMap { method ->
                 if (method.returnType.startsWith("Result<")) {
@@ -336,6 +344,17 @@ class KotlinUnitTestGenerator {
                 } else {
                     listOf(KotlinTestMethod(method, "withDefaultInputs_runs", KotlinScenarioKind.DEFAULT))
                 }
+            }
+        val llmGeneratedMethods = guidance.acceptedScenarios.mapNotNull { scenario ->
+            model.methods.singleOrNull { it.name == scenario.methodName }?.llmBoundaryTestMethod(scenario)
+        }
+        val generatedMethods = (llmGeneratedMethods + ruleGeneratedMethods)
+            .distinctBy { testMethod ->
+                Triple(
+                    testMethod.method.name,
+                    testMethod.kind,
+                    testMethod.arguments ?: testMethod.method.parameters.map { it.kotlinValue() },
+                )
             }
 
         val needsCoroutines = generatedMethods.any { it.method.isSuspend || it.kind.usesSuspendMock() }
@@ -391,6 +410,7 @@ class KotlinUnitTestGenerator {
             assertionCount = generatedMethods.sumOf { it.assertionCount() },
             fallbackMethodCount = generatedMethods.count { it.kind == KotlinScenarioKind.DEFAULT },
             ruleMatchedMethodCount = generatedMethods.count { it.kind != KotlinScenarioKind.DEFAULT },
+            llmAdoptedMethodCount = generatedMethods.count { it.kind == KotlinScenarioKind.LLM_BOUNDARY },
             mockedDependencyCount = dependencyParameters.size,
             mockStubCount = mockInteractions,
             mockVerificationCount = mockInteractions,
@@ -435,12 +455,13 @@ class KotlinUnitTestGenerator {
                 KotlinScenarioKind.RESULT_SUCCESS -> "returns ${method.resultInnerType().kotlinStandaloneValue()}"
                 KotlinScenarioKind.RESULT_FAILURE -> "throws RuntimeException(\"sample failure\")"
                 KotlinScenarioKind.DEFAULT -> "returns ${method.returnType.kotlinStandaloneValue()}"
+                KotlinScenarioKind.LLM_BOUNDARY -> "returns ${method.resultInnerType().kotlinStandaloneValue()}"
             }
             builder.appendLine("        $stubPrefix { ${dependencyCall.receiverName}.${dependencyCall.methodName}($arguments) } $stubTail")
             builder.appendLine()
         }
 
-        val methodArguments = method.parameters.joinToString(", ") { it.kotlinValue() }
+        val methodArguments = (testMethod.arguments ?: method.parameters.map { it.kotlinValue() }).joinToString(", ")
         if (method.returnType == "Unit") {
             builder.appendLine("        target.${method.name}($methodArguments)")
             builder.appendLine()
@@ -457,7 +478,8 @@ class KotlinUnitTestGenerator {
                     builder.appendLine("        assertTrue(result.isFailure)")
                     builder.appendLine("        assertEquals(\"sample failure\", result.exceptionOrNull()?.message)")
                 }
-                KotlinScenarioKind.DEFAULT -> builder.appendLine("        assertNotNull(result)")
+                KotlinScenarioKind.DEFAULT,
+                KotlinScenarioKind.LLM_BOUNDARY -> builder.appendLine("        assertNotNull(result)")
             }
         }
 
@@ -834,16 +856,52 @@ class KotlinUnitTestGenerator {
             .trim()
     }
 
+    private fun MethodModel.llmBoundaryTestMethod(scenario: LlmTestScenario): KotlinTestMethod? {
+        val requestedStrategy = LlmInputStrategy.fromWireName(scenario.inputStrategy)
+        val boundary = parameters
+            .mapIndexedNotNull { index, parameter ->
+                val strategies = parameter.supportedLlmInputStrategies()
+                val strategy = requestedStrategy?.takeIf { it in strategies }
+                    ?: if (requestedStrategy == null) strategies.firstOrNull() else null
+                if (!scenario.targetParameter.isNullOrBlank() &&
+                    parameter.name != scenario.targetParameter
+                ) {
+                    null
+                } else {
+                    strategy?.let { index to it }
+                }
+            }
+            .firstOrNull()
+            ?: return null
+        val boundaryValue = parameters[boundary.first].llmKotlinValue(boundary.second)
+            ?: return null
+        val arguments = parameters.mapIndexed { index, parameter ->
+            if (index == boundary.first) boundaryValue else parameter.kotlinValue()
+        }
+        return KotlinTestMethod(
+            method = this,
+            nameSuffix = "llm_${scenario.testName.safeTestName()}",
+            kind = KotlinScenarioKind.LLM_BOUNDARY,
+            arguments = arguments,
+        )
+    }
+    private fun String.safeTestName(): String {
+        val cleaned = replace(Regex("[^A-Za-z0-9_]"), "_").trim('_').take(60)
+        return cleaned.ifBlank { "suggestedBoundary" }
+    }
     private fun KotlinTestMethod.assertionCount(): Int {
         return when (kind) {
             KotlinScenarioKind.RESULT_SUCCESS,
             KotlinScenarioKind.RESULT_FAILURE -> 2
-            KotlinScenarioKind.DEFAULT -> 1
+            KotlinScenarioKind.DEFAULT,
+            KotlinScenarioKind.LLM_BOUNDARY -> 1
         }
     }
 
     private fun KotlinScenarioKind.usesMock(): Boolean {
-        return this != KotlinScenarioKind.DEFAULT
+        return this == KotlinScenarioKind.RESULT_SUCCESS ||
+            this == KotlinScenarioKind.RESULT_FAILURE ||
+            this == KotlinScenarioKind.LLM_BOUNDARY
     }
 
     private fun KotlinScenarioKind.usesSuspendMock(): Boolean {
@@ -854,12 +912,14 @@ class KotlinUnitTestGenerator {
         val method: MethodModel,
         val nameSuffix: String,
         val kind: KotlinScenarioKind,
+        val arguments: List<String>? = null,
     )
 
     private enum class KotlinScenarioKind {
         DEFAULT,
         RESULT_SUCCESS,
         RESULT_FAILURE,
+        LLM_BOUNDARY,
     }
 
     private enum class DataSourceKind {

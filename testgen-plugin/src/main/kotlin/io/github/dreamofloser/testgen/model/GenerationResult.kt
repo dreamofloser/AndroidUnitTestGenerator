@@ -1,5 +1,7 @@
 package io.github.dreamofloser.testgen.model
 
+import io.github.dreamofloser.testgen.analysis.TestabilityInsight
+import io.github.dreamofloser.testgen.llm.LlmAgentReport
 import java.io.File
 
 data class GenerationSummary(
@@ -8,6 +10,8 @@ data class GenerationSummary(
     val generatedClasses: List<GeneratedClassResult>,
     val skippedClasses: List<SkippedClassResult>,
     val coverage: CoverageSummary? = null,
+    val llmAgentReport: LlmAgentReport? = null,
+    val testabilityInsights: List<TestabilityInsight> = emptyList(),
 ) {
     val generatedTestMethods: Int
         get() = generatedClasses.sumOf { it.generatedMethodCount }
@@ -47,6 +51,9 @@ data class GenerationSummary(
 
     val retrofitApiTests: Int
         get() = generatedClasses.sumOf { it.retrofitApiTestCount }
+
+    val llmAdoptedMethods: Int
+        get() = generatedClasses.sumOf { it.llmAdoptedMethodCount }
 }
 
 data class GeneratedClassResult(
@@ -68,6 +75,7 @@ data class GeneratedClassResult(
     val composeTestCount: Int,
     val roomDaoTestCount: Int,
     val retrofitApiTestCount: Int,
+    val llmAdoptedMethodCount: Int = 0,
 )
 
 data class SkippedClassResult(

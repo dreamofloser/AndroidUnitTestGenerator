@@ -1,84 +1,130 @@
 # Android 应用单元测试自动生成框架开发路线
 
-## 第一阶段：基础闭环版
+## 已完成能力
 
-目标：做出一个可运行的 Gradle 插件，能够扫描 Java 源码并生成 JUnit4 测试骨架。
+- Gradle 插件和 `generateUnitTests`、`verifyGeneratedUnitTests` 任务。
+- JavaParser 与 Kotlin Compiler PSI 源码解析。
+- JUnit4、Mockito、MockK、Coroutine、Robolectric 基础生成。
+- ViewModel、LiveData、StateFlow、Activity、Fragment、Compose、Room、Retrofit 模板。
+- Markdown 报告、质量分、JaCoCo XML 读取。
+- Ollama、Mock、OpenAI-compatible Provider 和结构化 LLM 测试计划。
+- 固定两轮的用例指引生成器、缺口分析和跨轮去重。
+- 可解释的测试难度、优先级、自动化置信度和测试价值洞察。
 
-交付内容：
+## 本轮完成：两轮用例指引迭代扩展
 
-- Gradle 插件项目结构。
-- `generateUnitTests` 任务。
-- Java 源码扫描器。
-- 基于 JavaParser 的类和方法提取。
-- JUnit4 测试代码生成器。
-- Markdown 生成报告。
-- 用于验证插件的 `sample-target` 示例模块。
+学校项目的目标是能清楚证明 LLM 参与了测试生成，不要求实现自动修复或复杂自治 Agent。
+
+本轮内容：
+
+1. 缺口分析器先枚举确定性生成器能够实现、但当前尚未覆盖的候选用例。
+2. LLM 从候选项中输出目标方法、目标参数和输入策略。
+3. 支持 `empty-string`、`blank-string`、`null`、`zero`、`negative`、`false`、`empty-list`。
+4. 采纳器检查方法、参数、类型和策略。
+5. 指纹由“源码类 + 方法 + 参数 + 输入策略”组成，第 2 轮排除第 1 轮已采纳指纹。
+6. Java/Kotlin 生成器将模型选择转换为测试代码。
+7. 报告显示每轮候选数、返回数、采纳数、重复数和剩余缺口。
+8. 模型输出无效时继续保留规则生成结果。
 
 验收标准：
 
-- 目标模块可以应用 `io.github.dreamofloser.android-testgen` 插件。
-- 运行 `generateUnitTests` 后，会在 `src/test/java` 生成测试文件。
-- 报告能列出扫描文件数、解析类数、生成类数和跳过原因。
+- 报告出现 `GENERATED`，并显示目标参数和输入策略。
+- 报告中的两轮状态均为 `EXPANDED`，累计采纳 2 个场景。
+- 生成文件出现 `guide_i1_` 和 `guide_i2_` 测试方法。
+- 生成测试能够通过 `testDebugUnitTest`。
+- 使用真实 Ollama 时终端显示正确 Provider 和模型名。
 
-## 第二阶段：规则增强版
+当前验收记录：
 
-目标：让生成的测试用例更接近真实单元测试。
+```text
+Provider: ollama
+Model: deepseek-coder:6.7b-instruct
+Generated test classes: 10
+Generated test methods: 26
+Generated assertions: 46
+LLM suggestions: 8
+Guide expansion iterations: 2
+LLM adopted scenarios: 2
+Executed tests: 26
+Failed tests: 0
+```
 
-当前已加入：
+## 本轮完成：用例生成难度与 Insights
 
-- 简单算术返回值断言。
-- boolean 比较表达式 true/false 场景。
-- String 空串/null 参数变体。
-- int/long 零值和负数参数变体。
-- 简单异常场景生成。
-- 生成报告统计增强。
+1. `TestabilityAnalyzer` 对每个方法或可生成类目标执行静态分析。
+2. 难度分由控制流、依赖、异步状态、Android 耦合、外部资源和生成器限制共同组成。
+3. 同时输出测试优先级、自动化置信度、推荐测试策略和边界关注点。
+4. 报告增加测试价值矩阵、方法排行榜、难度来源分布和两轮边际收益。
+5. 两轮用例候选按 `guideValue` 排序，优先考虑高价值且可自动生成的场景。
+6. 分数全部来自可追溯规则，不由 LLM 直接生成。
 
-后续继续增强：
+示例模块当前分析结果：
 
-- 基本类型、字符串、集合、空值输入策略。
-- 边界值生成。
-- 异常测试生成。
-- 简单条件和返回表达式分析。
-- 更准确的断言生成。
+```text
+Analyzed test targets: 21
+Average generation difficulty: 18.3
+High-priority test targets: 7
+Hardest target: KotlinWeatherRepository#loadForecast
+Highest priority target: LoginViewModel#loadDisplayName
+Plugin regression tests: 55 passed, 0 failed
+```
 
-## 第三阶段：Mock 支持版
+## 结项收尾与保留技术债务
 
-目标：支持带依赖的业务层代码，例如 Service、Repository、Presenter。
+### 1. 常用生成场景补充
 
-当前已加入：
+- 扩大缺口分析器可提出的策略集合，例如代表性有效值、枚举和简单异常场景。
+- 继续完善 ViewModel、Retrofit、Room 和 Compose 模板。
+- 增加跨次生成结果去重；当前已完成单次任务内的跨轮指纹去重。
 
-- 构造函数依赖识别。
-- Mockito mock 字段生成。
-- `@Before` 初始化依赖和目标对象。
-- 简单依赖调用的 `when`/`thenReturn`。
-- 简单依赖调用的 `verify`。
-- 报告中统计 Mock 依赖、stub 和 verification 数量。
+### 2. 真实项目验证
 
-后续继续增强：
+- 已把插件接入 weather 项目。
+- 接入只修改 Gradle 配置和测试依赖，不修改业务源码。
+- 已记录 12 个测试类、17 个测试方法、49 个断言和 82/100 质量分。
 
-- Kotlin 代码生成 MockK 测试。
-- 字段注入、方法注入和更复杂依赖调用。
+### 3. 构建与报告优化
 
-## 第四阶段：Android 特性版
+- 增加适合本项目的 `gradle.properties`，减少首次编译后的重复耗时。
+- 为 LLM 响应增加简单缓存，避免重复等待。
+- 报告补充 LLM 采纳率、生成测试数量和测试执行结果。
+- 保持 JaCoCo 报告可以读取，不强求复杂多模块合并。
 
-目标：支持 Android 架构组件和常见 Android 本地行为。
+### 4. 最终演示和文档
 
-计划功能：
+- README、六个阶段总结和项目本质说明已整理。
+- 架构图、效果评估方法和真实 Ollama 结果已写入项目本质说明。
+- 最终提交前保留示例项目、weather 真实项目、生成代码、报告和测试结果截图。
 
-- ViewModel 测试模板。
-- LiveData 规则和观察辅助方法。
-- Repository 测试模板。
-- SharedPreferences 和资源访问场景。
-- Robolectric 测试模板。
+## 最终回归
 
-## 第五阶段：报告与可视化版
+最终回归是指停止增加功能后，按固定顺序重新执行已有验证，确认文档和收尾修改没有破坏插件。它不是新的开发阶段。
 
-目标：让框架更适合展示、答辩和效果评估。
+```powershell
+.\gradlew.bat -p testgen-plugin test --rerun-tasks
+.\gradlew.bat :sample-android-app:generateUnitTests --rerun-tasks
+.\gradlew.bat :sample-android-app:testDebugUnitTest --rerun-tasks
+.\gradlew.bat :sample-android-app:verifyGeneratedUnitTests -x :sample-android-app:generateUnitTests
+.\gradlew.bat :sample-target:test --rerun-tasks
+.\gradlew.bat :sample-target:generateUnitTests --rerun-tasks
+```
 
-计划功能：
+启用真实 LLM 回归前，需要在同一个 PowerShell 会话设置 Ollama 环境变量。验证任务使用 `-x :sample-android-app:generateUnitTests`，只检查当前报告，避免在缺少 LLM 配置的新会话中重新生成并覆盖真实模型结果。
 
-- HTML 报告。
-- JSON 报告，方便后续工具读取。
-- 生成/跳过方法统计。
-- 测试执行结果汇总。
-- JaCoCo/Kover 覆盖率集成。
+## 不作为学校项目目标
+
+- 不让 LLM 修改业务源码。
+- 不实现编译错误自动修复。
+- 不实现无上限的自治 Agent、工具调用循环或自动修复闭环。
+- 不要求发布到 Gradle Plugin Portal 或 Maven Central。
+- 不要求覆盖所有 AGP、Gradle、Kotlin 版本。
+- 不做企业级权限、遥测、多租户和远程模型管理。
+
+## 最终完成标准
+
+- 队友从 GitHub 克隆后能够按文档完成构建。
+- 示例项目能够稳定生成并运行测试。
+- 真实 Android 项目能够应用插件并输出报告。
+- LLM 能按固定两轮扩展至少生成两个可运行测试方法，失败时规则生成仍可工作。
+- 报告能够说明扫描、生成、跳过、覆盖率和 LLM 参与情况。
+- 项目结构、主要代码位置和演示命令可以在答辩中解释清楚。

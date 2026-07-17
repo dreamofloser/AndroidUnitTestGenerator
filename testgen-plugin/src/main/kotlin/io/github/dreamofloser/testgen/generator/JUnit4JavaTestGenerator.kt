@@ -8,11 +8,12 @@ import io.github.dreamofloser.testgen.model.MethodModel
 import io.github.dreamofloser.testgen.model.ParameterModel
 import io.github.dreamofloser.testgen.model.SourceClassKind
 import io.github.dreamofloser.testgen.model.TestScenario
+import io.github.dreamofloser.testgen.llm.LlmGenerationGuidance
 
 class JUnit4JavaTestGenerator(
     private val scenarioGenerator: TestScenarioGenerator = TestScenarioGenerator(),
 ) {
-    fun generate(model: ClassModel): GeneratedTestSource {
+    fun generate(model: ClassModel, guidance: LlmGenerationGuidance = LlmGenerationGuidance()): GeneratedTestSource {
         if (model.classKind == SourceClassKind.ACTIVITY) {
             return generateActivityLifecycleTest(model)
         }
@@ -24,7 +25,13 @@ class JUnit4JavaTestGenerator(
         val constructor = model.bestConstructor()
         val dependencyParameters = constructor.parameters.filter { it.isDependencyParameter() }
         val dependencyNames = dependencyParameters.map { it.name }.toSet()
-        val methodScenarios = model.methods.associateWith { scenarioGenerator.scenariosFor(it, dependencyNames) }
+        val methodScenarios = model.methods.associateWith { method ->
+            scenarioGenerator.scenariosFor(
+                method = method,
+                dependencyNames = dependencyNames,
+                llmScenarios = guidance.acceptedScenarios.filter { it.methodName == method.name },
+            )
+        }
         val scenarios = methodScenarios.values.flatten()
         val mockInteractions = scenarios.flatMap { it.mockInteractions }
         val needsLiveDataRule = model.usesLiveData()
@@ -115,6 +122,7 @@ class JUnit4JavaTestGenerator(
             liveDataRuleCount = if (needsLiveDataRule) 1 else 0,
             robolectricTestCount = if (needsRobolectricRunner) 1 else 0,
             androidImportCount = androidImportCount,
+            llmAdoptedMethodCount = scenarios.count { it.ruleName == "llm-boundary" },
         )
     }
 

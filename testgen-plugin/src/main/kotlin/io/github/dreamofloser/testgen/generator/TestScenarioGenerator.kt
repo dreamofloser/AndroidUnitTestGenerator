@@ -6,11 +6,19 @@ import io.github.dreamofloser.testgen.model.MethodModel
 import io.github.dreamofloser.testgen.model.MockInteractionModel
 import io.github.dreamofloser.testgen.model.ParameterModel
 import io.github.dreamofloser.testgen.model.TestScenario
+import io.github.dreamofloser.testgen.llm.LlmInputStrategy
+import io.github.dreamofloser.testgen.llm.LlmTestScenario
+import io.github.dreamofloser.testgen.llm.llmJavaValue
+import io.github.dreamofloser.testgen.llm.supportedLlmInputStrategies
 
 class TestScenarioGenerator(
     private val sampleValueProvider: SampleValueProvider = SampleValueProvider(),
 ) {
-    fun scenariosFor(method: MethodModel, dependencyNames: Set<String> = emptySet()): List<TestScenario> {
+    fun scenariosFor(
+        method: MethodModel,
+        dependencyNames: Set<String> = emptySet(),
+        llmScenarios: List<LlmTestScenario> = emptyList(),
+    ): List<TestScenario> {
         val scenarios = mutableListOf<TestScenario>()
 
         val mockScenarios = mockInteractionScenarios(method, dependencyNames)
@@ -26,11 +34,55 @@ class TestScenarioGenerator(
             }
         }
 
+        scenarios += llmBoundaryScenarios(method, llmScenarios)
+
         if (scenarios.isEmpty()) {
             scenarios += fallbackScenario(method)
         }
 
-        return scenarios.distinctBy { it.nameSuffix to it.arguments }
+        return scenarios
+            .sortedBy { if (it.ruleName == "llm-boundary") 0 else 1 }
+            .distinctBy { it.arguments }
+    }
+
+    private fun llmBoundaryScenarios(
+        method: MethodModel,
+        llmScenarios: List<LlmTestScenario>,
+    ): List<TestScenario> {
+        return llmScenarios.mapNotNull { llmScenario ->
+            val requestedStrategy = LlmInputStrategy.fromWireName(llmScenario.inputStrategy)
+            val boundary = method.parameters
+                .mapIndexedNotNull { index, parameter ->
+                    val strategies = parameter.supportedLlmInputStrategies()
+                    val strategy = requestedStrategy?.takeIf { it in strategies }
+                        ?: if (requestedStrategy == null) strategies.firstOrNull() else null
+                    if (!llmScenario.targetParameter.isNullOrBlank() &&
+                        parameter.name != llmScenario.targetParameter
+                    ) {
+                        null
+                    } else {
+                        strategy?.let { index to it }
+                    }
+                }
+                .firstOrNull()
+                ?: return@mapNotNull null
+            val boundaryValue = method.parameters[boundary.first].llmJavaValue(boundary.second)
+                ?: return@mapNotNull null
+            val arguments = method.parameters.mapIndexed { index, parameter ->
+                if (index == boundary.first) boundaryValue else sampleValueProvider.valueFor(parameter.type)
+            }
+            TestScenario(
+                nameSuffix = "llm_${llmScenario.testName.safeTestName()}",
+                arguments = arguments,
+                assertion = fallbackAssertionFor(method),
+                ruleName = "llm-boundary",
+            )
+        }
+    }
+
+    private fun String.safeTestName(): String {
+        val cleaned = replace(Regex("[^A-Za-z0-9_]"), "_").trim('_').take(60)
+        return cleaned.ifBlank { "suggestedBoundary" }
     }
 
     private fun mockInteractionScenarios(method: MethodModel, dependencyNames: Set<String>): List<TestScenario> {
@@ -353,6 +405,7 @@ class TestScenarioGenerator(
     private companion object {
         val booleanTypes = setOf("boolean", "Boolean")
         val numericTypes = setOf("byte", "short", "int", "long", "Byte", "Short", "Integer", "Long")
+        val primitiveBoundaryTypes = setOf("String", "java.lang.String", "boolean", "Boolean", "byte", "Byte", "short", "Short", "int", "Integer", "long", "Long", "float", "Float", "double", "Double")
         val primitiveAndVoidTypes = setOf(
             "void",
             "byte",

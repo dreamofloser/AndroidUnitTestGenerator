@@ -15,4 +15,5 @@ data class GeneratedTestSource(
     val composeTestCount: Int = 0,
     val roomDaoTestCount: Int = 0,
     val retrofitApiTestCount: Int = 0,
+    val llmAdoptedMethodCount: Int = 0,
 )

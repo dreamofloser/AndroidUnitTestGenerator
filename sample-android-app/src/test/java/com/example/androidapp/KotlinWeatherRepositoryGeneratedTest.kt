@@ -39,4 +39,23 @@ class KotlinWeatherRepositoryGeneratedTest {
         coVerify { api.fetchForecast(any()) }
     }
 
+    @Test
+    fun loadForecast_llm_guide_i1_loadForecast_city_blank_string() = runTest {
+        coEvery { api.fetchForecast(any()) } returns KotlinForecastResponse()
+
+        val result = target.loadForecast(" ")
+
+        assertNotNull(result)
+        coVerify { api.fetchForecast(any()) }
+    }
+
+    @Test
+    fun loadForecast_llm_guide_i2_loadForecast_city_empty_string() = runTest {
+        coEvery { api.fetchForecast(any()) } returns KotlinForecastResponse()
+
+        val result = target.loadForecast("")
+
+        assertNotNull(result)
+        coVerify { api.fetchForecast(any()) }
+    }
 }
