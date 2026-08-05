@@ -516,6 +516,20 @@ class KotlinSourceParser {
             }
     }
 
+private fun String.normalizeKotlinType(): String {
+    return trim()
+        .replace(kotlinWhitespaceRegex, " ")
+        .replace(kotlinTypePunctuationRegex, "$1")
+}
+
+private fun String.leadingKotlinReturnType(): String {
+    return kotlinReturnTypeRegex
+        .find(this)
+        ?.groupValues
+        ?.get(1)
+        .orEmpty()
+        .normalizeKotlinType()
+}
     private fun String.containsRetrofitHttpAnnotation(): Boolean {
         return retrofitHttpAnnotations.any { contains("@$it") }
     }
