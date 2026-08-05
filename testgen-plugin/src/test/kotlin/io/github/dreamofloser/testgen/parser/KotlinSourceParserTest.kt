@@ -239,6 +239,87 @@ class KotlinSourceParserTest {
 
         assertTrue(models.none { it.className == "MainActivity" })
     }
+    @Test
+    fun parsesExpressionBodyFunction() {
+        val model = parseSingleClass(
+            """
+            class Formatter {
+                fun format(value: Double): String = value.toString()
+            }
+            """.trimIndent(),
+        )
+        val method = model.methods.single()
+
+        assertEquals("format", method.name)
+        assertEquals("String", method.returnType)
+        assertEquals("value", method.parameters.single().name)
+        assertEquals("Double", method.parameters.single().type)
+    }
+
+    @Test
+    fun parsesFunctionWithDefaultParameter() {
+        val model = parseSingleClass(
+            """
+            class Greeter {
+                fun greet(name: String = "world"): String = name
+            }
+            """.trimIndent(),
+        )
+        val method = model.methods.single()
+
+        assertEquals("greet", method.name)
+        assertEquals("String", method.returnType)
+        assertEquals(1, method.parameters.size)
+        assertEquals("name", method.parameters.single().name)
+        assertEquals("String", method.parameters.single().type)
+    }
+
+    @Test
+    fun normalizesMultilineGenericReturnType() {
+        val model = parseSingleClass(
+            """
+            class GroupRepository {
+                fun groups(): Map<
+                    String,
+                    List<Int>
+                > = emptyMap()
+            }
+            """.trimIndent(),
+        )
+        val method = model.methods.single()
+
+        assertEquals("groups", method.name)
+        assertEquals("Map<String,List<Int>>", method.returnType)
+    }
+
+    @Test
+    fun parsesNullableGenericReturnType() {
+        val model = parseSingleClass(
+            """
+            class Cache {
+                fun cachedValues(): List<String>? = null
+            }
+            """.trimIndent(),
+        )
+        val method = model.methods.single()
+
+        assertEquals("cachedValues", method.name)
+        assertEquals("List<String>?", method.returnType)
+    }
+
+    private fun parseSingleClass(source: String) =
+        File.createTempFile("kotlin-parser-case", ".kt").let { file ->
+            file.writeText(
+                """
+                package sample
+
+                $source
+                """.trimIndent(),
+            )
+            file.deleteOnExit()
+
+            KotlinSourceParser().parse(file).single()
+        }
 }
 
 
