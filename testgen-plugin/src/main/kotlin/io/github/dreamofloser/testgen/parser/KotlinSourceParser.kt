@@ -42,26 +42,77 @@ class KotlinSourceParser {
                 .mapNotNull { it.importPath?.pathStr })
                 .distinct()
 
-            val classModels = ktFile.declarations
-                .filterIsInstance<KtClass>()
-                .mapNotNull { declaration -> declaration.toClassModel(sourceFile, packageName, imports) }
+            val psiClassModels = ktFile.declarations
+    .filterIsInstance<KtClass>()
+    .mapNotNull { declaration ->
+        declaration.toClassModel(sourceFile, packageName, imports)
+    }
 
             val composeModels = ktFile.declarations
                 .filterIsInstance<KtNamedFunction>()
                 .mapNotNull { function -> function.toComposeModel(sourceFile, packageName, imports) }
-            val fallbackModels = source.textFallbackClassModels(sourceFile, packageName, imports)
-            val retrofitModels = source.retrofitInterfaceModels(sourceFile, packageName, imports)
-            val retrofitModelNames = retrofitModels.map { it.className }.toSet()
-            val parsedModelNames = (classModels + retrofitModels + composeModels).map { it.className }.toSet()
+          val fallbackModels =
+    source.textFallbackClassModels(sourceFile, packageName, imports)
+val mergedClassModels =
+    psiClassModels.mergeFallbackModels(fallbackModels)
+val psiModelsByName =
+    psiClassModels.associateBy { it.className }
 
-            classModels.filterNot { it.className in retrofitModelNames } +
-                retrofitModels +
-                composeModels +
-                fallbackModels.filterNot { it.className in parsedModelNames }
+val retrofitModels =
+    source.retrofitInterfaceModels(sourceFile, packageName, imports)
+        .map { retrofitModel ->
+            retrofitModel.mergeRecoveredMethods(
+                psiModelsByName[retrofitModel.className],
+            )
+        }
+
+val retrofitModelNames =
+    retrofitModels.map { it.className }.toSet()
+
+mergedClassModels.filterNot {
+    it.className in retrofitModelNames
+} + retrofitModels + composeModels
         } finally {
             Disposer.dispose(disposable)
         }
     }
+private fun List<ClassModel>.mergeFallbackModels(
+    fallbackModels: List<ClassModel>,
+): List<ClassModel> {
+    val fallbackByName =
+        fallbackModels.associateBy { it.className }
+    val psiClassNames =
+        map { it.className }.toSet()
+
+    val mergedPsiModels = map { psiModel ->
+        psiModel.mergeRecoveredMethods(
+            fallbackByName[psiModel.className],
+        )
+    }
+
+    val fallbackOnlyModels = fallbackModels.filterNot {
+        it.className in psiClassNames
+    }
+
+    return mergedPsiModels + fallbackOnlyModels
+}
+private fun ClassModel.mergeRecoveredMethods(
+    recoveredModel: ClassModel?,
+): ClassModel {
+    val mergedMethods =
+        (methods + recoveredModel?.methods.orEmpty())
+            .distinctBy { method ->
+                method.kotlinSignatureKey()
+            }
+
+    return copy(methods = mergedMethods)
+}
+private fun MethodModel.kotlinSignatureKey():
+    Pair<String, List<String>> {
+    return name to parameters.map { parameter ->
+        parameter.type.normalizeKotlinType()
+    }
+}
 
     private fun File.toKtFile(
         disposable: org.jetbrains.kotlin.com.intellij.openapi.Disposable,
@@ -165,10 +216,12 @@ class KotlinSourceParser {
     ): MethodModel {
         val recoveredParameters = valueParameters.mapNotNull { it.toParameterModel() }
             .ifEmpty { text.recoverFunctionParameters() }
-        val recoveredReturnType = typeReference?.text?.trim()
-            .orEmpty()
-            .ifBlank { text.recoverFunctionReturnType() }
-            .ifBlank { "Unit" }
+  val recoveredReturnType = typeReference
+    ?.text
+    .orEmpty()
+    .normalizeKotlinType()
+    .ifBlank { text.recoverFunctionReturnType() }
+    .ifBlank { "Unit" }
 
         return MethodModel(
             name = name.orEmpty(),
@@ -208,7 +261,12 @@ class KotlinSourceParser {
 
     private fun KtParameter.toParameterModel(): ParameterModel? {
         val parameterName = name ?: return null
-        val parameterType = typeReference?.text?.trim().orEmpty().ifBlank { return null }
+        val parameterType = typeReference
+           ?.text
+            .orEmpty()
+            .normalizeKotlinType()
+            .ifBlank { return null }
+
         return ParameterModel(
             name = parameterName,
             type = parameterType,
@@ -217,7 +275,12 @@ class KotlinSourceParser {
 
     private fun KtProperty.toPropertyModel(): PropertyModel? {
         val propertyName = name ?: return null
-        val propertyType = typeReference?.text?.trim().orEmpty().ifBlank { return null }
+        val propertyType = typeReference
+          ?.text
+           .orEmpty()
+           .normalizeKotlinType()
+           .ifBlank { return null }
+
         return PropertyModel(
             name = propertyName,
             type = propertyType,
@@ -347,12 +410,9 @@ class KotlinSourceParser {
 
             val parameterText = substring(openParen + 1, closeParen)
             val suffix = substring(closeParen + 1)
-            val returnType = Regex("""^\s*:\s*([A-Za-z_][A-Za-z0-9_.<>?]*)""")
-                .find(suffix)
-                ?.groupValues
-                ?.get(1)
-                .orEmpty()
-                .ifBlank { "Unit" }
+            val returnType = suffix
+                 .leadingKotlinReturnType()
+                 .ifBlank { "Unit" }
             val functionBody = suffix.substringBefore("\nfun ")
 
             methods += MethodModel(
@@ -442,12 +502,10 @@ class KotlinSourceParser {
 
             val parameterText = substring(openParen + 1, closeParen)
             val suffix = substring(closeParen + 1)
-            val returnType = Regex("""^\s*:\s*([A-Za-z_][A-Za-z0-9_.<>?]*)""")
-                .find(suffix)
-                ?.groupValues
-                ?.get(1)
-                .orEmpty()
-                .ifBlank { "Unit" }
+            val returnType = suffix
+                 .leadingKotlinReturnType()
+                 .ifBlank { "Unit" }
+
 
             methods += MethodModel(
                 name = functionName,
@@ -511,28 +569,42 @@ class KotlinSourceParser {
                     .substringBefore('=')
                     .trim()
                 val name = cleaned.substringBefore(':').trim().ifBlank { return@mapNotNull null }
-                val type = cleaned.substringAfter(':', "").trim().ifBlank { return@mapNotNull null }
+                val type = cleaned
+                     .substringAfter(':', "")
+                     .normalizeKotlinType()
+                     .ifBlank { return@mapNotNull null }
+
                 ParameterModel(name = name, type = type)
             }
     }
 
+private fun String.normalizeKotlinType(): String {
+    return trim()
+        .replace(kotlinWhitespaceRegex, " ")
+        .replace(kotlinTypePunctuationRegex, "$1")
+}
+
+private fun String.leadingKotlinReturnType(): String {
+    return kotlinReturnTypeRegex
+        .find(this)
+        ?.groupValues
+        ?.get(1)
+        .orEmpty()
+        .normalizeKotlinType()
+}
     private fun String.containsRetrofitHttpAnnotation(): Boolean {
         return retrofitHttpAnnotations.any { contains("@$it") }
     }
 
     private fun String.recoverFunctionReturnType(): String {
-        val closeParen = matchingParenIndex(functionParameterOpenParenIndex())
-        if (closeParen == -1) {
-            return ""
-        }
-
-        val suffix = substring(closeParen + 1)
-        return Regex("""^\s*:\s*([A-Za-z_][A-Za-z0-9_.<>?]*)""")
-            .find(suffix)
-            ?.groupValues
-            ?.get(1)
-            .orEmpty()
+    val closeParen = matchingParenIndex(functionParameterOpenParenIndex())
+    if (closeParen == -1) {
+        return ""
     }
+
+    return substring(closeParen + 1)
+        .leadingKotlinReturnType()
+}
 
     private fun String.substringBetweenMatchingParentheses(): String? {
         val openParen = functionParameterOpenParenIndex()
@@ -641,6 +713,10 @@ class KotlinSourceParser {
     )
 
     private companion object {
+       val kotlinWhitespaceRegex = Regex("""\s+""")
+       val kotlinTypePunctuationRegex = Regex("""\s*([<>,?])\s*""")
+       val kotlinReturnTypeRegex =
+           Regex("""^\s*:\s*([A-Za-z_][A-Za-z0-9_.<>?]*)""")
         val unsupportedKotlinAndroidBaseTypes = setOf(
             "Activity",
             "AppCompatActivity",

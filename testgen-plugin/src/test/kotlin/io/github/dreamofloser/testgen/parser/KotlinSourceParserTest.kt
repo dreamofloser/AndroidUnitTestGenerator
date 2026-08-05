@@ -239,6 +239,130 @@ class KotlinSourceParserTest {
 
         assertTrue(models.none { it.className == "MainActivity" })
     }
+    @Test
+    fun parsesExpressionBodyFunction() {
+        val model = parseSingleClass(
+            """
+            class Formatter {
+                fun format(value: Double): String = value.toString()
+            }
+            """.trimIndent(),
+        )
+        val method = model.methods.single()
+
+        assertEquals("format", method.name)
+        assertEquals("String", method.returnType)
+        assertEquals("value", method.parameters.single().name)
+        assertEquals("Double", method.parameters.single().type)
+    }
+
+    @Test
+    fun parsesFunctionWithDefaultParameter() {
+        val model = parseSingleClass(
+            """
+            class Greeter {
+                fun greet(name: String = "world"): String = name
+            }
+            """.trimIndent(),
+        )
+        val method = model.methods.single()
+
+        assertEquals("greet", method.name)
+        assertEquals("String", method.returnType)
+        assertEquals(1, method.parameters.size)
+        assertEquals("name", method.parameters.single().name)
+        assertEquals("String", method.parameters.single().type)
+    }
+
+    @Test
+    fun normalizesMultilineGenericReturnType() {
+        val model = parseSingleClass(
+            """
+            class GroupRepository {
+                fun groups(): Map<
+                    String,
+                    List<Int>
+                > = emptyMap()
+            }
+            """.trimIndent(),
+        )
+        val method = model.methods.single()
+
+        assertEquals("groups", method.name)
+        assertEquals("Map<String,List<Int>>", method.returnType)
+    }
+
+    @Test
+    fun parsesNullableGenericReturnType() {
+        val model = parseSingleClass(
+            """
+            class Cache {
+                fun cachedValues(): List<String>? = null
+            }
+            """.trimIndent(),
+        )
+        val method = model.methods.single()
+
+        assertEquals("cachedValues", method.name)
+        assertEquals("List<String>?", method.returnType)
+    }
+@Test
+fun keepsSameNameOverloadsWithDifferentParameterTypes() {
+    val model = parseSingleClass(
+        """
+        class Converter {
+            fun convert(value: String): String = value
+
+            fun convert(value: Int): String = value.toString()
+        }
+        """.trimIndent(),
+    )
+
+    val overloads = model.methods
+        .filter { it.name == "convert" }
+
+    assertEquals(2, overloads.size)
+    assertEquals(
+        setOf("String", "Int"),
+        overloads
+            .map { it.parameters.single().type }
+            .toSet(),
+    )
+}
+@Test
+fun removesMethodRecoveredByBothPsiAndFallbackParser() {
+    val model = parseSingleClass(
+        """
+        class Repository {
+            fun load(id: String): String = id
+        }
+        """.trimIndent(),
+    )
+
+    val loadMethods = model.methods
+        .filter { it.name == "load" }
+
+    assertEquals(1, loadMethods.size)
+    assertEquals("String", loadMethods.single().returnType)
+    assertEquals(
+        "String",
+        loadMethods.single().parameters.single().type,
+    )
+}
+
+    private fun parseSingleClass(source: String) =
+        File.createTempFile("kotlin-parser-case", ".kt").let { file ->
+            file.writeText(
+                """
+                package sample
+
+                $source
+                """.trimIndent(),
+            )
+            file.deleteOnExit()
+
+            KotlinSourceParser().parse(file).single()
+        }
 }
 
 
