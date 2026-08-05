@@ -306,6 +306,49 @@ class KotlinSourceParserTest {
         assertEquals("cachedValues", method.name)
         assertEquals("List<String>?", method.returnType)
     }
+@Test
+fun keepsSameNameOverloadsWithDifferentParameterTypes() {
+    val model = parseSingleClass(
+        """
+        class Converter {
+            fun convert(value: String): String = value
+
+            fun convert(value: Int): String = value.toString()
+        }
+        """.trimIndent(),
+    )
+
+    val overloads = model.methods
+        .filter { it.name == "convert" }
+
+    assertEquals(2, overloads.size)
+    assertEquals(
+        setOf("String", "Int"),
+        overloads
+            .map { it.parameters.single().type }
+            .toSet(),
+    )
+}
+@Test
+fun removesMethodRecoveredByBothPsiAndFallbackParser() {
+    val model = parseSingleClass(
+        """
+        class Repository {
+            fun load(id: String): String = id
+        }
+        """.trimIndent(),
+    )
+
+    val loadMethods = model.methods
+        .filter { it.name == "load" }
+
+    assertEquals(1, loadMethods.size)
+    assertEquals("String", loadMethods.single().returnType)
+    assertEquals(
+        "String",
+        loadMethods.single().parameters.single().type,
+    )
+}
 
     private fun parseSingleClass(source: String) =
         File.createTempFile("kotlin-parser-case", ".kt").let { file ->

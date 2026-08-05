@@ -42,26 +42,77 @@ class KotlinSourceParser {
                 .mapNotNull { it.importPath?.pathStr })
                 .distinct()
 
-            val classModels = ktFile.declarations
-                .filterIsInstance<KtClass>()
-                .mapNotNull { declaration -> declaration.toClassModel(sourceFile, packageName, imports) }
+            val psiClassModels = ktFile.declarations
+    .filterIsInstance<KtClass>()
+    .mapNotNull { declaration ->
+        declaration.toClassModel(sourceFile, packageName, imports)
+    }
 
             val composeModels = ktFile.declarations
                 .filterIsInstance<KtNamedFunction>()
                 .mapNotNull { function -> function.toComposeModel(sourceFile, packageName, imports) }
-            val fallbackModels = source.textFallbackClassModels(sourceFile, packageName, imports)
-            val retrofitModels = source.retrofitInterfaceModels(sourceFile, packageName, imports)
-            val retrofitModelNames = retrofitModels.map { it.className }.toSet()
-            val parsedModelNames = (classModels + retrofitModels + composeModels).map { it.className }.toSet()
+          val fallbackModels =
+    source.textFallbackClassModels(sourceFile, packageName, imports)
+val mergedClassModels =
+    psiClassModels.mergeFallbackModels(fallbackModels)
+val psiModelsByName =
+    psiClassModels.associateBy { it.className }
 
-            classModels.filterNot { it.className in retrofitModelNames } +
-                retrofitModels +
-                composeModels +
-                fallbackModels.filterNot { it.className in parsedModelNames }
+val retrofitModels =
+    source.retrofitInterfaceModels(sourceFile, packageName, imports)
+        .map { retrofitModel ->
+            retrofitModel.mergeRecoveredMethods(
+                psiModelsByName[retrofitModel.className],
+            )
+        }
+
+val retrofitModelNames =
+    retrofitModels.map { it.className }.toSet()
+
+mergedClassModels.filterNot {
+    it.className in retrofitModelNames
+} + retrofitModels + composeModels
         } finally {
             Disposer.dispose(disposable)
         }
     }
+private fun List<ClassModel>.mergeFallbackModels(
+    fallbackModels: List<ClassModel>,
+): List<ClassModel> {
+    val fallbackByName =
+        fallbackModels.associateBy { it.className }
+    val psiClassNames =
+        map { it.className }.toSet()
+
+    val mergedPsiModels = map { psiModel ->
+        psiModel.mergeRecoveredMethods(
+            fallbackByName[psiModel.className],
+        )
+    }
+
+    val fallbackOnlyModels = fallbackModels.filterNot {
+        it.className in psiClassNames
+    }
+
+    return mergedPsiModels + fallbackOnlyModels
+}
+private fun ClassModel.mergeRecoveredMethods(
+    recoveredModel: ClassModel?,
+): ClassModel {
+    val mergedMethods =
+        (methods + recoveredModel?.methods.orEmpty())
+            .distinctBy { method ->
+                method.kotlinSignatureKey()
+            }
+
+    return copy(methods = mergedMethods)
+}
+private fun MethodModel.kotlinSignatureKey():
+    Pair<String, List<String>> {
+    return name to parameters.map { parameter ->
+        parameter.type.normalizeKotlinType()
+    }
+}
 
     private fun File.toKtFile(
         disposable: org.jetbrains.kotlin.com.intellij.openapi.Disposable,
