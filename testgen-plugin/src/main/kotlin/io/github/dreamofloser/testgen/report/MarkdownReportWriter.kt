@@ -77,7 +77,7 @@ class MarkdownReportWriter {
                 appendLine("| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |")
                 summary.generatedClasses.forEach {
                     appendLine(
-                        "| ${it.sourceClass} | ${it.sourceLanguage} | ${it.sourceClassKind} | ${it.testClass} | ${it.generatedMethodCount} | ${it.assertionCount} | ${it.mockedDependencyCount} | ${it.mockStubCount} | ${it.mockVerificationCount} | ${it.liveDataRuleCount} | ${it.robolectricTestCount} | ${it.androidImportCount} | ${it.composeTestCount} | ${it.roomDaoTestCount} | ${it.retrofitApiTestCount} | ${it.fallbackMethodCount} | `${it.testFile}` |",
+                        "| ${it.sourceClass.markdownCell()} | ${it.sourceLanguage} | ${it.sourceClassKind} | ${it.testClass.markdownCell()} |${it.generatedMethodCount} | ${it.assertionCount} | ${it.mockedDependencyCount} | ${it.mockStubCount} | ${it.mockVerificationCount} | ${it.liveDataRuleCount} | ${it.robolectricTestCount} | ${it.androidImportCount} | ${it.composeTestCount} | ${it.roomDaoTestCount} | ${it.retrofitApiTestCount} | ${it.fallbackMethodCount} | `${it.testFile}` |",
                     )
                 }
             }
@@ -92,7 +92,7 @@ class MarkdownReportWriter {
                 appendLine("| Source class | Reason |")
                 appendLine("| --- | --- |")
                 summary.skippedClasses.forEach {
-                    appendLine("| ${it.sourceClass} | ${it.reason} |")
+                    appendLine("| ${it.sourceClass.markdownCell()} | ${it.reason.markdownCell()} |")
                 }
                 appendLine()
                 appendLine("### Skipped Reason Summary")
@@ -103,7 +103,9 @@ class MarkdownReportWriter {
                     .groupingBy { it.reason }
                     .eachCount()
                     .toSortedMap()
-                    .forEach { (reason, count) -> appendLine("| $reason | $count |") }
+                    .forEach { (reason, count) ->
+                        appendLine("| ${reason.markdownCell()} | $count |")
+                    }
             }
         }
     }
@@ -328,7 +330,11 @@ class MarkdownReportWriter {
             appendLine("| Iteration | Source | Parse status | Scenarios | Mock strategies | Manual review notes |")
             appendLine("| ---: | --- | --- | ---: | ---: | ---: |")
             report.structuredPlans.forEach { plan ->
-                appendLine("| ${plan.iteration} | ${plan.sourceClass} | ${plan.parseStatus} | ${plan.scenarios.size} | ${plan.mockStrategies.size} | ${plan.manualReviewNotes.size} |")
+                appendLine(
+                    "| ${plan.iteration} | ${plan.sourceClass.markdownCell()} | " +
+                            "${plan.parseStatus} | ${plan.scenarios.size} | " +
+                            "${plan.mockStrategies.size} | ${plan.manualReviewNotes.size} |",
+                )
             }
             appendLine()
             report.structuredPlans.take(10).forEach { plan ->
@@ -374,7 +380,17 @@ class MarkdownReportWriter {
             appendLine("| Iteration | Source | Method | Target parameter | Input strategy | Test name | Category | Status | Reason |")
             appendLine("| ---: | --- | --- | --- | --- | --- | --- | --- | --- |")
             report.adoptionDecisions.forEach { decision ->
-                appendLine("| ${decision.iteration} | ${decision.sourceClass} | ${decision.methodName ?: "-"} | ${decision.targetParameter ?: "-"} | ${decision.inputStrategy ?: "-"} | ${decision.testName} | ${decision.category} | ${decision.status} | ${decision.reason} |")
+                appendLine(
+                    "| ${decision.iteration} | " +
+                            "${decision.sourceClass.markdownCell()} | " +
+                            "${decision.methodName?.markdownCell() ?: "-"} | " +
+                            "${decision.targetParameter?.markdownCell() ?: "-"} | " +
+                            "${decision.inputStrategy?.markdownCell() ?: "-"} | " +
+                            "${decision.testName.markdownCell()} | " +
+                            "${decision.category.markdownCell()} | " +
+                            "${decision.status} | " +
+                            "${decision.reason.markdownCell()} |",
+                )
             }
             appendLine()
             appendLine("Adoption summary: " + report.adoptionDecisions
@@ -406,7 +422,13 @@ class MarkdownReportWriter {
         appendLine("| --- | --- | --- | --- | --- | --- | --- |")
         suggestions.take(20).forEach { suggestion ->
             appendLine(
-                "| ${suggestion.sourceClass} | ${suggestion.methodName ?: "-"} | ${suggestion.category} | ${suggestion.recommendation} | ${suggestion.rationale} | ${yesNo(suggestion.requiresMock)} | ${yesNo(suggestion.reviewRequired)} |",
+                "| ${suggestion.sourceClass.markdownCell()} | " +
+                        "${suggestion.methodName?.markdownCell() ?: "-"} | " +
+                        "${suggestion.category.markdownCell()} | " +
+                        "${suggestion.recommendation.markdownCell()} | " +
+                        "${suggestion.rationale.markdownCell()} | " +
+                        "${yesNo(suggestion.requiresMock)} | " +
+                        "${yesNo(suggestion.reviewRequired)} |",
             )
         }
         if (suggestions.size > 20) {
@@ -483,6 +505,13 @@ class MarkdownReportWriter {
         appendLine("| Name | Count |")
         appendLine("| --- | ---: |")
         counts.toSortedMap().forEach { (name, count) -> appendLine("| $name | $count |") }
+    }
+
+    private fun String.markdownCell(): String {
+        return replace("\r\n", "\n")
+            .replace('\r', '\n')
+            .replace("|", "\\|")
+            .replace("\n", "<br>")
     }
 
     private fun status(passed: Boolean): String {
