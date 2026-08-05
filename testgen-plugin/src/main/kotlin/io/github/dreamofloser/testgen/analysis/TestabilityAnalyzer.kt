@@ -82,18 +82,6 @@ class TestabilityAnalyzer(
         )
     }
 
-    companion object {
-        private const val CONTROL_FLOW_CONDITION_WEIGHT = 5
-        private const val CONTROL_FLOW_EXCEPTION_WEIGHT = 4
-        private const val CONTROL_FLOW_RETURN_WEIGHT = 2
-        private const val CONTROL_FLOW_MAX_POINTS = 25
-
-        
-        private const val DIFFICULTY_MIN = 0
-        private const val DIFFICULTY_MAX = 100
-    }
-
-
     private fun dependencyEvidence(
         dependencyNames: Set<String>,
         method: MethodModel,
@@ -475,6 +463,14 @@ class TestabilityAnalyzer(
     }
 
     private companion object {
+
+        private const val CONTROL_FLOW_CONDITION_WEIGHT = 5
+        private const val CONTROL_FLOW_EXCEPTION_WEIGHT = 4
+        private const val CONTROL_FLOW_RETURN_WEIGHT = 2
+        private const val CONTROL_FLOW_MAX_POINTS = 25   
+        private const val DIFFICULTY_MIN = 0
+        private const val DIFFICULTY_MAX = 100
+
         val asyncTypeMarkers = listOf("Flow<", "StateFlow<", "LiveData<", "Deferred<", "Job")
         val stateMutationMethods = listOf("setValue", "postValue", "emit", "tryEmit", "update")
         val criticalMethodMarkers = listOf(
