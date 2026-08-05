@@ -14,31 +14,23 @@ class TestabilityAnalyzer(
     }
 
     fun analyze(model: ClassModel): List<TestabilityInsight> {
-        val targets = model.methods.ifEmpty {
-            listOf(
-                MethodModel(
-                    name = "<class>",
-                    returnType = model.className,
-                    parameters = model.constructors.firstOrNull()?.parameters.orEmpty(),
-                    isStatic = false,
-                    thrownExceptions = emptyList(),
-                ),
-            )
-        }
+        val targets = model.methods.ifEmpty { listOf(buildFallbackMethod(model)) }
         return targets.map { method -> analyze(model, method) }
     }
 
     private fun analyze(model: ClassModel, method: MethodModel): TestabilityInsight {
         val dependencyNames = dependencyNames(model, method)
-        val evidence = buildList {
-            controlFlowEvidence(method)?.let(::add)
-            dependencyEvidence(dependencyNames, method)?.let(::add)
-            asyncEvidence(model, method)?.let(::add)
-            androidFrameworkEvidence(model, method)?.let(::add)
-            externalResourceEvidence(model, method)?.let(::add)
-            generatorLimitationEvidence(model, method)?.let(::add)
-        }
-        val difficulty = evidence.sumOf { it.points }.coerceIn(0, 100)
+
+        val evidence = listOfNotNull(
+            controlFlowEvidence(method),
+            dependencyEvidence(dependencyNames, method),
+            asyncEvidence(model, method),
+            androidFrameworkEvidence(model, method),
+            externalResourceEvidence(model, method),
+            generatorLimitationEvidence(model, method),
+        )
+
+        val difficulty = evidence.sumOf { it.points }.coerceIn(DIFFICULTY_MIN, DIFFICULTY_MAX)
         val priority = priorityScore(model, method, dependencyNames)
         val confidence = automationConfidence(
             model = model,
@@ -47,6 +39,7 @@ class TestabilityAnalyzer(
             evidence = evidence,
             difficulty = difficulty,
         )
+
         return TestabilityInsight(
             sourceClass = model.qualifiedName(),
             methodName = method.name,
@@ -63,17 +56,43 @@ class TestabilityAnalyzer(
         val conditionCount = method.conditionExpressions.size
         val exceptionCount = (method.thrownExceptions + method.thrownStatementTypes).distinct().size
         val additionalReturns = (method.returnExpressions.size - 1).coerceAtLeast(0)
-        val points = (conditionCount * 5 + exceptionCount * 4 + additionalReturns * 2)
-            .coerceAtMost(25)
-        if (points == 0) {
-            return null
-        }
+
+        val points = (
+            conditionCount * CONTROL_FLOW_CONDITION_WEIGHT
+                + exceptionCount * CONTROL_FLOW_EXCEPTION_WEIGHT
+                + additionalReturns * CONTROL_FLOW_RETURN_WEIGHT
+        ).coerceAtMost(CONTROL_FLOW_MAX_POINTS)
+
+        if (points == 0) return null
+
         return DifficultyEvidence(
             driver = DifficultyDriver.CONTROL_FLOW,
             points = points,
             detail = "$conditionCount conditions, $exceptionCount exception paths, $additionalReturns additional returns",
         )
     }
+
+    private fun buildFallbackMethod(model: ClassModel): MethodModel {
+        return MethodModel(
+            name = "<class>",
+            returnType = model.className,
+            parameters = model.constructors.firstOrNull()?.parameters.orEmpty(),
+            isStatic = false,
+            thrownExceptions = emptyList(),
+        )
+    }
+
+    companion object {
+        private const val CONTROL_FLOW_CONDITION_WEIGHT = 5
+        private const val CONTROL_FLOW_EXCEPTION_WEIGHT = 4
+        private const val CONTROL_FLOW_RETURN_WEIGHT = 2
+        private const val CONTROL_FLOW_MAX_POINTS = 25
+
+        
+        private const val DIFFICULTY_MIN = 0
+        private const val DIFFICULTY_MAX = 100
+    }
+
 
     private fun dependencyEvidence(
         dependencyNames: Set<String>,
