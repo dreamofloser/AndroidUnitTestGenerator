@@ -210,7 +210,12 @@ class KotlinSourceParser {
 
     private fun KtParameter.toParameterModel(): ParameterModel? {
         val parameterName = name ?: return null
-        val parameterType = typeReference?.text?.trim().orEmpty().ifBlank { return null }
+        val parameterType = typeReference
+           ?.text
+            .orEmpty()
+            .normalizeKotlinType()
+            .ifBlank { return null }
+
         return ParameterModel(
             name = parameterName,
             type = parameterType,
@@ -219,7 +224,12 @@ class KotlinSourceParser {
 
     private fun KtProperty.toPropertyModel(): PropertyModel? {
         val propertyName = name ?: return null
-        val propertyType = typeReference?.text?.trim().orEmpty().ifBlank { return null }
+        val propertyType = typeReference
+          ?.text
+           .orEmpty()
+           .normalizeKotlinType()
+           .ifBlank { return null }
+
         return PropertyModel(
             name = propertyName,
             type = propertyType,
@@ -349,12 +359,9 @@ class KotlinSourceParser {
 
             val parameterText = substring(openParen + 1, closeParen)
             val suffix = substring(closeParen + 1)
-            val returnType = Regex("""^\s*:\s*([A-Za-z_][A-Za-z0-9_.<>?]*)""")
-                .find(suffix)
-                ?.groupValues
-                ?.get(1)
-                .orEmpty()
-                .ifBlank { "Unit" }
+            val returnType = suffix
+                 .leadingKotlinReturnType()
+                 .ifBlank { "Unit" }
             val functionBody = suffix.substringBefore("\nfun ")
 
             methods += MethodModel(
@@ -444,12 +451,10 @@ class KotlinSourceParser {
 
             val parameterText = substring(openParen + 1, closeParen)
             val suffix = substring(closeParen + 1)
-            val returnType = Regex("""^\s*:\s*([A-Za-z_][A-Za-z0-9_.<>?]*)""")
-                .find(suffix)
-                ?.groupValues
-                ?.get(1)
-                .orEmpty()
-                .ifBlank { "Unit" }
+            val returnType = suffix
+                 .leadingKotlinReturnType()
+                 .ifBlank { "Unit" }
+
 
             methods += MethodModel(
                 name = functionName,
@@ -513,7 +518,11 @@ class KotlinSourceParser {
                     .substringBefore('=')
                     .trim()
                 val name = cleaned.substringBefore(':').trim().ifBlank { return@mapNotNull null }
-                val type = cleaned.substringAfter(':', "").trim().ifBlank { return@mapNotNull null }
+                val type = cleaned
+                     .substringAfter(':', "")
+                     .normalizeKotlinType()
+                     .ifBlank { return@mapNotNull null }
+
                 ParameterModel(name = name, type = type)
             }
     }
@@ -537,18 +546,14 @@ private fun String.leadingKotlinReturnType(): String {
     }
 
     private fun String.recoverFunctionReturnType(): String {
-        val closeParen = matchingParenIndex(functionParameterOpenParenIndex())
-        if (closeParen == -1) {
-            return ""
-        }
-
-        val suffix = substring(closeParen + 1)
-        return Regex("""^\s*:\s*([A-Za-z_][A-Za-z0-9_.<>?]*)""")
-            .find(suffix)
-            ?.groupValues
-            ?.get(1)
-            .orEmpty()
+    val closeParen = matchingParenIndex(functionParameterOpenParenIndex())
+    if (closeParen == -1) {
+        return ""
     }
+
+    return substring(closeParen + 1)
+        .leadingKotlinReturnType()
+}
 
     private fun String.substringBetweenMatchingParentheses(): String? {
         val openParen = functionParameterOpenParenIndex()
@@ -657,6 +662,10 @@ private fun String.leadingKotlinReturnType(): String {
     )
 
     private companion object {
+       val kotlinWhitespaceRegex = Regex("""\s+""")
+       val kotlinTypePunctuationRegex = Regex("""\s*([<>,?])\s*""")
+       val kotlinReturnTypeRegex =
+           Regex("""^\s*:\s*([A-Za-z_][A-Za-z0-9_.<>?]*)""")
         val unsupportedKotlinAndroidBaseTypes = setOf(
             "Activity",
             "AppCompatActivity",
