@@ -165,10 +165,12 @@ class KotlinSourceParser {
     ): MethodModel {
         val recoveredParameters = valueParameters.mapNotNull { it.toParameterModel() }
             .ifEmpty { text.recoverFunctionParameters() }
-        val recoveredReturnType = typeReference?.text?.trim()
-            .orEmpty()
-            .ifBlank { text.recoverFunctionReturnType() }
-            .ifBlank { "Unit" }
+  val recoveredReturnType = typeReference
+    ?.text
+    .orEmpty()
+    .normalizeKotlinType()
+    .ifBlank { text.recoverFunctionReturnType() }
+    .ifBlank { "Unit" }
 
         return MethodModel(
             name = name.orEmpty(),
