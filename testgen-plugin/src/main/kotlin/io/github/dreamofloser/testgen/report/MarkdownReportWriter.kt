@@ -31,7 +31,7 @@ class MarkdownReportWriter {
             appendLine("| Generated test classes | ${summary.generatedClasses.size} |")
             appendLine("| Generated test methods | ${summary.generatedTestMethods} |")
             appendLine("| Generated assertions | ${summary.generatedAssertions} |")
-            appendLine("| Generation quality score | ${summary.qualityScore()}/100 |")
+            appendLine("| Generation quality score | ${QualityScoreCalculator.calculate(summary)}/100 |")
             appendLine("| Rule matched methods | ${summary.ruleMatchedMethods} |")
             appendLine("| Fallback methods | ${summary.fallbackMethods} |")
             appendLine("| Mocked dependencies | ${summary.mockedDependencies} |")
@@ -179,6 +179,7 @@ class MarkdownReportWriter {
     private fun StringBuilder.appendTestabilityInsights(summary: GenerationSummary) {
         appendLine("## Testability Insights")
         appendLine()
+        assertTrue(report.contains("| Generation quality score | 53/100 |"))
         val insights = summary.testabilityInsights
         if (insights.isEmpty()) {
             appendLine("No source methods were available for testability analysis.")
@@ -525,22 +526,4 @@ class MarkdownReportWriter {
             TestValueQuadrant.DEFER_OR_REVIEW -> "Defer or test manually"
         }
     }
-
-    private fun GenerationSummary.qualityScore(): Int {
-        if (parsedClasses == 0) {
-            return 0
-        }
-
-        val generationRatio = generatedClasses.size.toDouble() / parsedClasses.toDouble()
-        val assertionRatio = generatedAssertions.toDouble() / generatedClasses.size.coerceAtLeast(1).toDouble()
-        val baseScore = (generationRatio * 60).toInt()
-        val assertionScore = minOf(20, (assertionRatio * 8).toInt())
-        val specializationScore = if (composeTests + roomDaoTests + retrofitApiTests + liveDataRules + robolectricTests > 0) 15 else 5
-        val coverageScore = if (coverage != null) 5 else 0
-        val fallbackPenalty = minOf(20, fallbackMethods * 3)
-        val skippedPenalty = minOf(20, skippedClasses.size * 5)
-
-        return (baseScore + assertionScore + specializationScore + coverageScore - fallbackPenalty - skippedPenalty)
-            .coerceIn(0, 100)
     }
-}
