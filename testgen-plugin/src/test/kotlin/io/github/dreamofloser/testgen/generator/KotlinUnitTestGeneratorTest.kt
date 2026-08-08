@@ -224,6 +224,14 @@ class KotlinUnitTestGeneratorTest {
                     thrownExceptions = emptyList(),
                     isSuspend = true,
                 ),
+                MethodModel(
+                    name = "deleteCity",
+                    returnType = "Unit",
+                    parameters = listOf(ParameterModel("city", "City")),
+                    isStatic = false,
+                    thrownExceptions = emptyList(),
+                    isSuspend = true,
+                ),
             ),
             language = SourceLanguage.KOTLIN,
             classKind = SourceClassKind.ROOM_DAO,
@@ -231,6 +239,9 @@ class KotlinUnitTestGeneratorTest {
 
         val result = KotlinUnitTestGenerator().generate(model)
         val source = result.source
+        assertTrue(source.contains("coEvery { target.deleteCity(any()) } returns Unit"))
+        assertTrue(source.contains("target.deleteCity(City())"))
+        assertTrue(source.contains("coVerify { target.deleteCity(any()) }"))
 
         assertTrue(source.contains("class CityDaoGeneratedTest"))
         assertTrue(source.contains("private val target = mockk<CityDao>()"))
@@ -239,7 +250,7 @@ class KotlinUnitTestGeneratorTest {
         assertTrue(source.contains("coEvery { target.insertCity(any()) } returns Unit"))
         assertTrue(source.contains("coVerify { target.insertCity(any()) }"))
         assertTrue(result.roomDaoTestCount == 1)
-        assertTrue(result.testMethodCount == 2)
+        assertTrue(result.testMethodCount == 3)
     }
 
     @Test
@@ -300,4 +311,41 @@ class KotlinUnitTestGeneratorTest {
         assertTrue(result.testMethodCount == 4)
         assertTrue(result.assertionCount == 12)
     }
+    @Test
+fun generatesRetrofitPostEndpointMetadataTest() {
+    val model = ClassModel(
+        packageName = "com.example.weather.data",
+        className = "WeatherApiService",
+        sourceFile = File("WeatherApiService.kt"),
+        imports = listOf(
+            "com.example.weather.data.WeatherResponse",
+            "retrofit2.Response",
+        ),
+        constructors = emptyList(),
+        methods = listOf(
+            MethodModel(
+                name = "refreshWeather",
+                returnType = "Response<WeatherResponse>",
+                parameters = emptyList(),
+                isStatic = false,
+                thrownExceptions = emptyList(),
+                isSuspend = true,
+                httpMethod = "POST",
+                httpPath = "weather/refresh",
+            ),
+        ),
+        language = SourceLanguage.KOTLIN,
+        classKind = SourceClassKind.RETROFIT_API,
+    )
+
+    val result = KotlinUnitTestGenerator().generate(model)
+    val source = result.source
+
+    assertTrue(source.contains("import retrofit2.http.POST"))
+    assertTrue(source.contains("fun refreshWeather_hasRetrofitEndpointMetadata()"))
+    assertTrue(source.contains("method.getAnnotation(POST::class.java)"))
+    assertTrue(source.contains("assertEquals(\"weather/refresh\", annotation!!.value)"))
+    assertTrue(result.testMethodCount == 2)
+}
+
 }

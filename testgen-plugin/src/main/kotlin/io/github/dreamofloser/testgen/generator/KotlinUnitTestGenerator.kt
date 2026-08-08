@@ -559,13 +559,12 @@ class KotlinUnitTestGenerator {
         builder.appendLine("    fun ${method.name}_requestsExpectedUrlWithMockWebServer() = runTest {")
         builder.appendLine("        val server = MockWebServer()")
         builder.appendLine("        try {")
-        builder.appendLine("            server.enqueue(MockResponse().setResponseCode(200).setBody(\"{}\"))")
-        builder.appendLine("            server.start()")
-        builder.appendLine("            val service = Retrofit.Builder()")
-        builder.appendLine("                .baseUrl(server.url(\"/\"))")
-        builder.appendLine("                .addConverterFactory(sampleConverterFactory($responseBodyValue))")
-        builder.appendLine("                .build()")
-        builder.appendLine("                .create(${model.className}::class.java)")
+        appendRetrofitServiceSetup(
+    builder,
+    model,
+    responseBodyValue,
+    "MockResponse().setResponseCode(200).setBody(\"{}\")",
+)
         builder.appendLine()
         builder.appendLine("            val result = service.${method.name}($invocationArguments)")
         builder.appendLine()
@@ -596,13 +595,13 @@ class KotlinUnitTestGenerator {
         builder.appendLine("        val server = MockWebServer()")
         builder.appendLine("        try {")
         builder.appendLine("            server.enqueue(MockResponse().setResponseCode(500).setBody(\"{\\\"message\\\":\\\"sample failure\\\"}\"))")
-        builder.appendLine("            server.start()")
-        builder.appendLine("            val service = Retrofit.Builder()")
-        builder.appendLine("                .baseUrl(server.url(\"/\"))")
-        builder.appendLine("                .addConverterFactory(sampleConverterFactory($responseBodyValue))")
-        builder.appendLine("                .build()")
-        builder.appendLine("                .create(${model.className}::class.java)")
-        builder.appendLine()
+        appendRetrofitServiceSetup(
+    builder,
+    model,
+    responseBodyValue,
+    "MockResponse().setResponseCode(500).setBody(\"{\\\"message\\\":\\\"sample failure\\\"}\")",
+)
+
         builder.appendLine("            val result = service.${method.name}($invocationArguments)")
         builder.appendLine()
         builder.appendLine("            assertFalse(result.isSuccessful)")
@@ -615,6 +614,22 @@ class KotlinUnitTestGenerator {
         builder.appendLine("        }")
         builder.appendLine("    }")
     }
+    private fun appendRetrofitServiceSetup(
+    builder: StringBuilder,
+    model: ClassModel,
+    responseBodyValue: String,
+    mockResponse: String,
+) {
+    builder.appendLine("            server.enqueue($mockResponse)")
+    builder.appendLine("            server.start()")
+    builder.appendLine("            val service = Retrofit.Builder()")
+    builder.appendLine("                .baseUrl(server.url(\"/\"))")
+    builder.appendLine("                .addConverterFactory(sampleConverterFactory($responseBodyValue))")
+    builder.appendLine("                .build()")
+    builder.appendLine("                .create(${model.className}::class.java)")
+    builder.appendLine()
+}
+
     private fun appendRetrofitSampleConverterFactory(builder: StringBuilder) {
         builder.appendLine("    private fun sampleConverterFactory(value: Any): Converter.Factory {")
         builder.appendLine("        return object : Converter.Factory() {")
